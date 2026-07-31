@@ -313,17 +313,19 @@ La app está desplegada en Vercel:
 🔗 **https://formacion-ya.vercel.app**
 
 - Cuenta: `walthermorarivera`, proyecto `z-labs2/formacion-ya`.
-- Desplegado vía CLI (`npx vercel --prod --yes`) desde este mismo directorio — no está conectado a un repositorio Git remoto todavía, por lo que no hay auto-deploy al hacer commits; cada actualización requiere correr el comando de deploy manualmente.
+- Conectado al repositorio GitHub (`WaltherMoraRivera/Titulares_futbol_app`, rama `main`): **cada `git push` a `main` dispara un deploy automático a producción**. Ya no hace falta correr `vercel --prod` a mano.
 - Al estar en HTTPS, ahí sí funciona la Web Share API completa (compartir la formación directo a WhatsApp desde el celular).
+
+### Repositorio y paquete Android
+
+- Código fuente: **https://github.com/WaltherMoraRivera/Titulares_futbol_app**
+- `.apk` instalable (generado con PWABuilder, envoltorio TWA sobre `https://formacion-ya.vercel.app`): [`apk/Titulares_Android.apk`](apk/Titulares_Android.apk) dentro del repo. Se instala habilitando "orígenes desconocidos" en Android, sin pasar por Google Play.
 
 ---
 
 ## 9. Estado del proyecto y pendientes
 
-**Completado:** gestión de jugadores (con plantilla por defecto precargada), asistencia, constructor de formación con drag & drop (con `DragOverlay` para que la tarjeta arrastrada no se recorte ni desaparezca), compartir por imagen con Web Share API, historial, animaciones, responsive, PWA instalable con ícono de marca, tema visual oscuro con paleta del escudo de Las Condes FC, despliegue en producción con HTTPS.
-
-**En curso / próximo paso:**
-- Empaquetar la PWA como `.apk` instalable (Android) usando [PWABuilder](https://www.pwabuilder.com) apuntando a `https://formacion-ya.vercel.app`, para poder compartirla e instalarla directamente sin pasar por una tienda de aplicaciones.
+**Completado:** gestión de jugadores (con plantilla por defecto precargada), asistencia, constructor de formación con drag & drop (con `DragOverlay` para que la tarjeta arrastrada no se recorte ni desaparezca), compartir por imagen con Web Share API, historial, animaciones, responsive, PWA instalable con ícono de marca, tema visual oscuro con paleta del escudo de Las Condes FC, despliegue en producción con HTTPS + auto-deploy desde GitHub, paquete `.apk` para instalación directa en Android.
 
 **Mejoras futuras sugeridas** (no implementadas, compatibles con la arquitectura actual sin necesidad de reestructurar):
 - Sustituciones en tiempo real durante el partido.
@@ -332,4 +334,4 @@ La app está desplegada en Vercel:
 - Múltiples plantillas/equipos.
 - Estadísticas por jugador (goles, asistencias, tarjetas, lesiones).
 - Inicio de sesión.
-- Conectar el proyecto a un repositorio Git para habilitar auto-deploy en Vercel.
+- Publicar el `.apk` también en Google Play (requiere cuenta de desarrollador de pago) o generar el paquete equivalente para iOS.
