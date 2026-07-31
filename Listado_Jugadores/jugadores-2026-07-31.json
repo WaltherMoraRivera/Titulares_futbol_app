@@ -1,0 +1,124 @@
+[
+  {
+    "name": "Francisco Araneda",
+    "number": 1,
+    "primaryPosition": "POR",
+    "dominantFoot": "derecho",
+    "active": true
+  },
+  {
+    "name": "Mauricio Araneda",
+    "number": 2,
+    "primaryPosition": "LAT",
+    "secondaryPosition": "VOL",
+    "dominantFoot": "derecho",
+    "active": true
+  },
+  {
+    "name": "Lucas Rivas",
+    "number": 5,
+    "primaryPosition": "DFC",
+    "secondaryPosition": "MCD",
+    "dominantFoot": "derecho",
+    "active": true
+  },
+  {
+    "name": "JP Fontecilla",
+    "number": 7,
+    "primaryPosition": "MCD",
+    "dominantFoot": "derecho",
+    "active": true
+  },
+  {
+    "name": "Israel Torres",
+    "number": 9,
+    "primaryPosition": "MCD",
+    "dominantFoot": "derecho",
+    "active": true
+  },
+  {
+    "name": "Matias Camilo",
+    "number": 10,
+    "primaryPosition": "DEL",
+    "secondaryPosition": "MC",
+    "dominantFoot": "derecho",
+    "active": true
+  },
+  {
+    "name": "Hector Andahur",
+    "number": 11,
+    "primaryPosition": "DEL",
+    "secondaryPosition": "MP",
+    "dominantFoot": "derecho",
+    "active": true
+  },
+  {
+    "name": "Matias Rojas",
+    "number": 12,
+    "primaryPosition": "MCD",
+    "secondaryPosition": "DFC",
+    "dominantFoot": "derecho",
+    "active": true
+  },
+  {
+    "name": "Cristian Fernandez",
+    "number": 14,
+    "primaryPosition": "LAT",
+    "secondaryPosition": "VOL",
+    "dominantFoot": "izquierdo",
+    "active": true
+  },
+  {
+    "name": "Ignacio del Valle",
+    "number": 18,
+    "primaryPosition": "MC",
+    "dominantFoot": "derecho",
+    "active": true
+  },
+  {
+    "name": "Gustavo Valenzuela",
+    "number": 20,
+    "primaryPosition": "LAT",
+    "secondaryPosition": "VOL",
+    "active": true
+  },
+  {
+    "name": "Eugenio Valenzuela",
+    "number": 24,
+    "primaryPosition": "MC",
+    "dominantFoot": "derecho",
+    "active": true
+  },
+  {
+    "name": "Walther Mora",
+    "number": 25,
+    "primaryPosition": "LAT",
+    "secondaryPosition": "VOL",
+    "dominantFoot": "derecho",
+    "active": true
+  },
+  {
+    "name": "Agustín Rivas",
+    "number": 33,
+    "primaryPosition": "LAT",
+    "secondaryPosition": "VOL",
+    "dominantFoot": "derecho",
+    "active": true
+  },
+  {
+    "name": "Felipe del Curto",
+    "number": 55,
+    "primaryPosition": "MCD",
+    "secondaryPosition": "VOL",
+    "dominantFoot": "derecho",
+    "active": true
+  },
+  {
+    "name": "Fenomeno San Martin",
+    "number": 66,
+    "primaryPosition": "DEL",
+    "secondaryPosition": "MC",
+    "dominantFoot": "derecho",
+    "active": true
+  }
+]
