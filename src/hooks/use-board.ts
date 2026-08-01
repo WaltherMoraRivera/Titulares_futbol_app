@@ -18,6 +18,7 @@ interface BoardState {
   movePlayerOnField: (playerId: string, x: number, y: number) => Promise<void>;
   moveToBench: (playerId: string) => Promise<void>;
   moveToField: (playerId: string, x: number, y: number) => Promise<void>;
+  setInstructions: (playerId: string, instructions: string) => Promise<void>;
   updateMeta: (meta: Partial<Pick<MatchLineup, "opponent" | "kickoffTime" | "comments" | "date">>) => Promise<void>;
   clear: () => Promise<void>;
 }
@@ -93,6 +94,21 @@ export const useBoardStore = create<BoardState>((set, get) => ({
             ...lineup.assignments,
             { slotId: `manual-${playerId}`, playerId, x, y },
           ],
+      updatedAt: new Date().toISOString(),
+    };
+    set({ lineup: updated });
+    await saveCurrentLineup(updated);
+  },
+
+  setInstructions: async (playerId, instructions) => {
+    const lineup = get().lineup;
+    if (!lineup) return;
+    const trimmed = instructions.trim();
+    const updated: MatchLineup = {
+      ...lineup,
+      assignments: lineup.assignments.map((a) =>
+        a.playerId === playerId ? { ...a, instructions: trimmed || undefined } : a
+      ),
       updatedAt: new Date().toISOString(),
     };
     set({ lineup: updated });

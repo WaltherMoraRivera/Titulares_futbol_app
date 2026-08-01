@@ -22,11 +22,21 @@ function ExportChip({ player, assignment }: { player: Player; assignment: Lineup
         translate: "-50% -50%",
       }}
     >
-      <span
-        className="flex h-13 w-13 items-center justify-center rounded-full border-2 border-white text-lg font-extrabold text-white shadow"
-        style={{ backgroundColor: color }}
-      >
-        {player.number}
+      <span className="relative">
+        <span
+          className="flex h-13 w-13 items-center justify-center rounded-full border-2 border-white text-lg font-extrabold text-white shadow"
+          style={{ backgroundColor: color }}
+        >
+          {player.number}
+        </span>
+        {assignment.instructions?.trim() && (
+          <span
+            className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border border-white text-[10px]"
+            style={{ backgroundColor: "#d9a24b" }}
+          >
+            📋
+          </span>
+        )}
       </span>
       <span className="max-w-[96px] truncate rounded bg-black/50 px-1.5 py-0.5 text-xs font-semibold text-white">
         {getDisplayName(player, { short: true })}
@@ -39,6 +49,8 @@ export const ExportView = forwardRef<HTMLDivElement, ExportViewProps>(function E
   { lineup, formationLabel, playersById, bench },
   ref
 ) {
+  const instructedAssignments = lineup.assignments.filter((a) => a.instructions?.trim());
+
   return (
     <div
       ref={ref}
@@ -66,6 +78,26 @@ export const ExportView = forwardRef<HTMLDivElement, ExportViewProps>(function E
           return <ExportChip key={a.playerId} player={player} assignment={a} />;
         })}
       </div>
+
+      {instructedAssignments.length > 0 && (
+        <div>
+          <p className="mb-2 text-sm font-semibold text-white/60">Instrucciones tácticas</p>
+          <div className="space-y-1.5">
+            {instructedAssignments.map((a) => {
+              const player = playersById.get(a.playerId);
+              if (!player) return null;
+              return (
+                <p key={a.playerId} className="text-xs text-white">
+                  <span className="font-bold" style={{ color: "#d9a24b" }}>
+                    {player.number} {getDisplayName(player, { short: true })}:
+                  </span>{" "}
+                  {a.instructions}
+                </p>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {bench.length > 0 && (
         <div>

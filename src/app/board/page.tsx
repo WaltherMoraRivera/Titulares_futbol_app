@@ -40,6 +40,7 @@ export default function BoardPage() {
     moveToField,
     moveToBench,
     updateMeta,
+    setInstructions,
   } = useBoardStore();
 
   const { addOrUpdate: archiveLineup } = useHistoryStore();
@@ -70,6 +71,9 @@ export default function BoardPage() {
     () => new Set(lineup?.assignments.map((a) => a.playerId) ?? []),
     [lineup]
   );
+  const selectedInstructions = selectedPlayer
+    ? lineup?.assignments.find((a) => a.playerId === selectedPlayer.id)?.instructions
+    : undefined;
 
   function handleDragStart(event: DragStartEvent) {
     setActivePlayer(playersById.get(String(event.active.id)) ?? null);
@@ -183,6 +187,8 @@ export default function BoardPage() {
         onOpenChange={(open) => !open && setSelectedPlayer(null)}
         onBench={(p) => moveToBench(p.id)}
         showBenchAction={!!selectedPlayer && onFieldIds.has(selectedPlayer.id)}
+        instructions={selectedInstructions}
+        onInstructionsChange={setInstructions}
       />
 
       <ShareDialog

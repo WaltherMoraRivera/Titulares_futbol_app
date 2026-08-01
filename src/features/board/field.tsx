@@ -42,7 +42,12 @@ export const Field = forwardRef<HTMLDivElement, FieldProps>(function Field(
               exit={{ opacity: 0, scale: 0.6 }}
               transition={{ duration: 0.2 }}
             >
-              <PlayerCard player={player} position={{ x: a.x, y: a.y }} onTap={onTapPlayer} />
+              <PlayerCard
+                player={player}
+                position={{ x: a.x, y: a.y }}
+                onTap={onTapPlayer}
+                hasInstructions={!!a.instructions?.trim()}
+              />
             </motion.div>
           );
         })}

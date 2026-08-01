@@ -1,11 +1,14 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Player, POSITION_LABELS } from "@/types";
 import { getPositionColor } from "@/utils/position-colors";
 import { getDisplayName } from "@/utils/player-display";
@@ -16,6 +19,8 @@ interface PlayerInfoSheetProps {
   onOpenChange: (open: boolean) => void;
   onBench?: (player: Player) => void;
   showBenchAction: boolean;
+  instructions?: string;
+  onInstructionsChange?: (playerId: string, instructions: string) => void;
 }
 
 export function PlayerInfoSheet({
@@ -23,8 +28,15 @@ export function PlayerInfoSheet({
   onOpenChange,
   onBench,
   showBenchAction,
+  instructions,
+  onInstructionsChange,
 }: PlayerInfoSheetProps) {
   const color = player ? player.color ?? getPositionColor(player.primaryPosition) : "#888";
+  const [draft, setDraft] = useState("");
+
+  useEffect(() => {
+    setDraft(instructions ?? "");
+  }, [player?.id, instructions]);
 
   return (
     <Sheet open={!!player} onOpenChange={onOpenChange}>
@@ -67,10 +79,24 @@ export function PlayerInfoSheet({
                 </p>
               )}
 
+              {showBenchAction && onInstructionsChange && (
+                <div className="space-y-1.5 pt-1">
+                  <Label htmlFor="instructions">Instrucciones tácticas</Label>
+                  <Textarea
+                    id="instructions"
+                    placeholder="Ej: Marca personal al 10 rival, cerrar la banda izquierda..."
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onBlur={() => onInstructionsChange(player.id, draft)}
+                    rows={3}
+                  />
+                </div>
+              )}
+
               {showBenchAction && onBench && (
                 <Button
                   variant="outline"
-                  className="mt-3 w-full"
+                  className="w-full"
                   onClick={() => {
                     onBench(player);
                     onOpenChange(false);

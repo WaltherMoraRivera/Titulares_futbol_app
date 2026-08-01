@@ -147,7 +147,13 @@ interface MatchLineup {
   comments?: string;
   formationTemplateId: string;
   attendeeIds: string[];
-  assignments: { slotId: string; playerId: string; x: number; y: number }[];
+  assignments: {
+    slotId: string;
+    playerId: string;
+    x: number;
+    y: number;
+    instructions?: string;   // instrucción táctica para ese jugador en ese partido
+  }[];
   bench: string[];
   createdAt: string;
   updatedAt: string;
@@ -183,6 +189,7 @@ interface MatchLineup {
 - Tocar un jugador abre un panel (`Sheet`) con su info rápida (nombre, número, posiciones, pie dominante) y la opción de sacarlo a la banca.
 - Colores por posición para identificar roles de un vistazo.
 - **Banca con desplazamiento lateral**: cuando hay más jugadores de los que entran en el ancho visible (equipos con alta asistencia), aparecen flechas de navegación a los costados para deslizar y acceder a todos — antes, con 5+ jugadores en banca, los últimos quedaban inaccesibles en móvil porque el gesto de swipe competía con el `touch-action: none` que necesitan las tarjetas para el drag & drop.
+- **Instrucciones tácticas por jugador (Fase 1 del "apartado táctico")**: dentro del panel de cada jugador en cancha hay un cuadro de texto para dejarle una instrucción puntual (ej. "Marca personal al 10 rival"). Se guarda por jugador y por partido (`assignments[].instructions`, no en el perfil del jugador). Un jugador con instrucciones cargadas muestra un pequeño ícono 📋 en su ficha, tanto en la cancha interactiva como en la imagen exportada — que además agrega una sección "Instrucciones tácticas" con el detalle de texto completo, para que se pueda compartir por WhatsApp junto con la formación.
 
 ### 5.5 Compartir formación
 - Genera una imagen PNG (cancha + banca + fecha/rival/hora) usando `html-to-image`.
@@ -329,13 +336,22 @@ La app está desplegada en Vercel:
 
 ## 9. Estado del proyecto y pendientes
 
-**Completado:** gestión de jugadores (con plantilla por defecto precargada), asistencia, constructor de formación con drag & drop (con `DragOverlay` para que la tarjeta arrastrada no se recorte ni desaparezca), compartir por imagen con Web Share API, historial, animaciones, responsive, PWA instalable con ícono de marca, tema visual oscuro con paleta del escudo de Las Condes FC, despliegue en producción con HTTPS + auto-deploy desde GitHub, paquete `.apk` para instalación directa en Android.
+**Completado:** gestión de jugadores (con plantilla por defecto precargada, alias por jugador), asistencia, constructor de formación con drag & drop (con `DragOverlay` para que la tarjeta arrastrada no se recorte ni desaparezca, banca con desplazamiento lateral), panel de instrucciones tácticas por jugador/partido, compartir por imagen con Web Share API (incluye instrucciones tácticas), historial, animaciones, responsive, PWA instalable con ícono de marca, tema visual oscuro con paleta del escudo de Las Condes FC, despliegue en producción con HTTPS + auto-deploy desde GitHub, paquete `.apk` para instalación directa en Android.
 
-**Mejoras futuras sugeridas** (no implementadas, compatibles con la arquitectura actual sin necesidad de reestructurar):
+### Roadmap: de "ver la formación" a plataforma del equipo
+
+Visión a futuro: que la app reemplace a WhatsApp como canal central del equipo — partidos agendados, asistencia confirmada por cada jugador desde su propio teléfono, formación e instrucciones tácticas visibles para todos el día del partido, y registro histórico de resultados/goleadores/tarjetas. Fases propuestas:
+
+- **Fase 0 — Backend y cuentas** *(prerequisito de las fases 2 en adelante)*: la app hoy es de un solo dispositivo (Local Storage). Para que un jugador marque asistencia desde su celular y el DT lo vea en el suyo, hace falta un backend real (`SupabaseAdapter`, ya contemplado en la arquitectura) + autenticación con roles (DT/capitán vs. jugador).
+- **Fase 1 — Panel táctico (MVP)** ✅ completado — instrucciones por jugador, ver arriba.
+- **Fase 2 — Partidos agendados**: DT/capitán crea partidos (fecha, hora, rival); depende de Fase 0.
+- **Fase 3 — Vista del jugador**: cada jugador ve su próximo partido, confirma asistencia, y el día del partido ve la formación + instrucciones; depende de Fase 0 y 2.
+- **Fase 4 — Registro post-partido**: resultado, goleadores, tarjetas, notas del DT; depende de Fase 2.
+- **Fase 5 — Estadísticas**: agregación de goles/tarjetas/convocatorias por jugador a lo largo de la temporada; depende de Fase 4.
+- **Fase 6 — Zonas de influencia y redes de pase**: mapas de calor y líneas de asociación entre jugadores sobre la cancha; mejora visual, no bloquea nada de lo anterior.
+
+**Otras mejoras futuras sugeridas** (no implementadas, compatibles con la arquitectura actual):
 - Sustituciones en tiempo real durante el partido.
 - Exportación a PDF.
-- Sincronización en la nube (Supabase/Firebase) vía un nuevo `IStorageAdapter`.
 - Múltiples plantillas/equipos.
-- Estadísticas por jugador (goles, asistencias, tarjetas, lesiones).
-- Inicio de sesión.
 - Publicar el `.apk` también en Google Play (requiere cuenta de desarrollador de pago) o generar el paquete equivalente para iOS.

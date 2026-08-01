@@ -3,6 +3,7 @@ export interface LineupAssignment {
   playerId: string;
   x: number;
   y: number;
+  instructions?: string;
 }
 
 export interface MatchLineup {

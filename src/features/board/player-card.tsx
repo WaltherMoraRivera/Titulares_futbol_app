@@ -11,9 +11,16 @@ interface PlayerCardProps {
   /** Posición absoluta en % dentro de la cancha. Si es undefined, la tarjeta fluye normalmente (banca). */
   position?: { x: number; y: number };
   variant?: "field" | "bench";
+  hasInstructions?: boolean;
 }
 
-export function PlayerCard({ player, onTap, position, variant = "field" }: PlayerCardProps) {
+export function PlayerCard({
+  player,
+  onTap,
+  position,
+  variant = "field",
+  hasInstructions = false,
+}: PlayerCardProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: player.id,
   });
@@ -45,7 +52,7 @@ export function PlayerCard({ player, onTap, position, variant = "field" }: Playe
       }
       data-dragging={isDragging}
     >
-      <PlayerCardVisual player={player} variant={variant} />
+      <PlayerCardVisual player={player} variant={variant} hasInstructions={hasInstructions} />
     </button>
   );
 }
