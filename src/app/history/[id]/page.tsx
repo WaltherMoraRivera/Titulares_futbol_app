@@ -11,6 +11,7 @@ import { usePlayersStore } from "@/hooks/use-players";
 import { PitchBackground } from "@/features/board/pitch-background";
 import { getFormationPreset } from "@/utils/formation-presets";
 import { getPositionColor } from "@/utils/position-colors";
+import { getDisplayName } from "@/utils/player-display";
 import { ArrowLeft, Trash2 } from "lucide-react";
 
 export default function HistoryDetailPage({
@@ -107,7 +108,7 @@ export default function HistoryDetailPage({
                     {player.number}
                   </span>
                   <span className="max-w-[64px] truncate text-[10px] font-semibold text-white drop-shadow">
-                    {player.name.split(" ")[0]}
+                    {getDisplayName(player, { short: true })}
                   </span>
                 </div>
               );

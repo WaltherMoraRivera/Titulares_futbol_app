@@ -45,13 +45,13 @@ export default function FormationPage() {
 
       {attendees.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">
-          Primero marcá los asistentes en la pantalla anterior.
+          Primero marca a los asistentes en la pantalla anterior.
         </p>
       ) : (
         <>
           <p className="mb-4 text-sm text-muted-foreground">
-            {attendees.length} jugadores asistentes. Elegí un esquema para ubicarlos
-            automáticamente; después podés moverlos como quieras.
+            {attendees.length} jugadores asistentes. Elige un esquema para ubicarlos
+            automáticamente; después puedes moverlos como quieras.
           </p>
           <motion.div
             className="grid grid-cols-2 gap-3"

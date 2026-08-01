@@ -2,6 +2,7 @@
 
 import { Player, POSITION_LABELS } from "@/types";
 import { getPositionColor } from "@/utils/position-colors";
+import { getDisplayName } from "@/utils/player-display";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Pencil, Trash2 } from "lucide-react";
@@ -14,6 +15,7 @@ interface PlayerRowProps {
 
 export function PlayerRow({ player, onEdit, onDelete }: PlayerRowProps) {
   const color = player.color ?? getPositionColor(player.primaryPosition);
+  const usingAlias = !!(player.showAlias && player.alias?.trim());
 
   return (
     <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
@@ -25,7 +27,12 @@ export function PlayerRow({ player, onEdit, onDelete }: PlayerRowProps) {
       </div>
 
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">{player.name}</p>
+        <p className="truncate font-medium">
+          {getDisplayName(player)}
+          {usingAlias && (
+            <span className="ml-1.5 font-normal text-muted-foreground">({player.name})</span>
+          )}
+        </p>
         <div className="flex flex-wrap gap-1 pt-0.5">
           <Badge variant="secondary" style={{ color }}>
             {POSITION_LABELS[player.primaryPosition]}

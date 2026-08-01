@@ -130,7 +130,7 @@ export default function BoardPage() {
     return (
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
         <p className="text-sm text-muted-foreground">
-          Todavía no armaste una formación. Empezá marcando la asistencia.
+          Todavía no armaste una formación. Empieza marcando la asistencia.
         </p>
         <Link href="/attendance">
           <Button>Marcar asistencia</Button>

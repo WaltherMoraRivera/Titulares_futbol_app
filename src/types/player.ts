@@ -5,6 +5,8 @@ export type DominantFoot = "izquierdo" | "derecho" | "ambidiestro";
 export interface Player {
   id: string;
   name: string;
+  alias?: string;
+  showAlias?: boolean;
   number: number;
   primaryPosition: Position;
   secondaryPosition?: Position;

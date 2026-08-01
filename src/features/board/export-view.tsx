@@ -1,6 +1,7 @@
 import { forwardRef } from "react";
 import { LineupAssignment, MatchLineup, Player } from "@/types";
 import { getPositionColor } from "@/utils/position-colors";
+import { getDisplayName } from "@/utils/player-display";
 import { PitchBackground } from "./pitch-background";
 
 interface ExportViewProps {
@@ -28,7 +29,7 @@ function ExportChip({ player, assignment }: { player: Player; assignment: Lineup
         {player.number}
       </span>
       <span className="max-w-[96px] truncate rounded bg-black/50 px-1.5 py-0.5 text-xs font-semibold text-white">
-        {player.name.split(" ")[0]}
+        {getDisplayName(player, { short: true })}
       </span>
     </div>
   );
@@ -84,7 +85,7 @@ export const ExportView = forwardRef<HTMLDivElement, ExportViewProps>(function E
                   >
                     {player.number}
                   </span>
-                  <span className="text-xs text-white">{player.name}</span>
+                  <span className="text-xs text-white">{getDisplayName(player)}</span>
                 </div>
               );
             })}

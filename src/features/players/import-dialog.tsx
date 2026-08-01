@@ -88,7 +88,7 @@ export function ImportDialog({
         <DialogHeader>
           <DialogTitle>Importar jugadores</DialogTitle>
           <DialogDescription>
-            Subí un archivo CSV o JSON. Columnas esperadas: name, number,
+            Sube un archivo CSV o JSON. Columnas esperadas: name, number,
             primaryPosition, secondaryPosition, dominantFoot, active.
           </DialogDescription>
         </DialogHeader>

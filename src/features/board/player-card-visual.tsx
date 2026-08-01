@@ -1,5 +1,6 @@
 import { Player } from "@/types";
 import { getPositionColor } from "@/utils/position-colors";
+import { getDisplayName } from "@/utils/player-display";
 
 interface PlayerCardVisualProps {
   player: Player;
@@ -26,7 +27,7 @@ export function PlayerCardVisual({ player, variant = "field" }: PlayerCardVisual
             : "max-w-[76px] truncate text-xs font-semibold leading-tight text-foreground"
         }
       >
-        {player.name.split(" ")[0]}
+        {getDisplayName(player, { short: true })}
       </span>
     </>
   );

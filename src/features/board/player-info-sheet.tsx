@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/sheet";
 import { Player, POSITION_LABELS } from "@/types";
 import { getPositionColor } from "@/utils/position-colors";
+import { getDisplayName } from "@/utils/player-display";
 import { Button } from "@/components/ui/button";
 
 interface PlayerInfoSheetProps {
@@ -38,11 +39,17 @@ export function PlayerInfoSheet({
                 >
                   {player.number}
                 </span>
-                {player.name}
+                {getDisplayName(player)}
               </SheetTitle>
             </SheetHeader>
 
             <div className="space-y-2 px-4 pb-6 text-sm">
+              {player.showAlias && player.alias?.trim() && (
+                <p>
+                  <span className="text-muted-foreground">Nombre: </span>
+                  {player.name}
+                </p>
+              )}
               <p>
                 <span className="text-muted-foreground">Posición principal: </span>
                 {POSITION_LABELS[player.primaryPosition]}

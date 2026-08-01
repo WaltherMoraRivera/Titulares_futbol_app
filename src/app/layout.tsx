@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "TITULARES",
-  description: "Armá la alineación del equipo en menos de un minuto",
+  description: "Arma la alineación del equipo en menos de un minuto",
   icons: {
     icon: "/icon.png",
     apple: "/icon.png",

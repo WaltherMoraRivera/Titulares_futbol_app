@@ -38,7 +38,7 @@ export default function Home() {
       <motion.div variants={item} className="text-center">
         <h1 className="text-2xl font-bold">⚽ TITULARES ⚽</h1>
         <p className="text-sm text-muted-foreground">
-          Armá la alineación del equipo en menos de un minuto.
+          Arma la alineación del equipo en menos de un minuto.
         </p>
       </motion.div>
 

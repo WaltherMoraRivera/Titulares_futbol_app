@@ -2,6 +2,7 @@
 
 import { Player, POSITION_LABELS } from "@/types";
 import { getPositionColor } from "@/utils/position-colors";
+import { getDisplayName } from "@/utils/player-display";
 import { Checkbox } from "@/components/ui/checkbox";
 
 interface AttendanceRowProps {
@@ -26,7 +27,7 @@ export function AttendanceRow({ player, checked, onToggle }: AttendanceRowProps)
       </div>
 
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">{player.name}</p>
+        <p className="truncate font-medium">{getDisplayName(player)}</p>
         <p className="text-xs text-muted-foreground">
           {POSITION_LABELS[player.primaryPosition]}
         </p>

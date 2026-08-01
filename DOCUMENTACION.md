@@ -112,6 +112,8 @@ type Position = "POR" | "DFC" | "LAT" | "MCD" | "MC" | "VOL" | "EXT" | "MP" | "D
 interface Player {
   id: string;
   name: string;
+  alias?: string;           // apodo opcional (útil con nombres repetidos, ej. varios "Matías")
+  showAlias?: boolean;      // si true, la UI muestra el alias en vez del nombre
   number: number;
   primaryPosition: Position;
   secondaryPosition?: Position;
@@ -162,6 +164,7 @@ interface MatchLineup {
 - Búsqueda y orden (nombre, número, posición).
 - Importación masiva por **CSV** o **JSON**, con validación fila por fila (número duplicado, posición inválida) y vista previa de errores antes de confirmar.
 - Exportación del listado visible (respeta el filtro de búsqueda activo) a un archivo **JSON** descargable, en el mismo formato que espera la importación.
+- **Alias por jugador**: campo opcional + casilla "Mostrar en la app por su alias, no por su nombre". Útil cuando hay varios jugadores con el mismo nombre de pila (ej. varios "Matías"). El nombre a mostrar se resuelve con `utils/player-display.ts` (`getDisplayName`) y se usa en todos lados: tarjetas de cancha/banca, listados, asistencia, panel de info y la imagen exportada. Cuando el alias está activo, el nombre real se sigue mostrando entre paréntesis o como dato secundario para no perder trazabilidad.
 
 ### 5.2 Asistencia (`/attendance`)
 - Marca de asistentes al partido (solo jugadores activos).
@@ -179,6 +182,7 @@ interface MatchLineup {
 - Reposicionamiento libre de jugadores ya ubicados en la cancha.
 - Tocar un jugador abre un panel (`Sheet`) con su info rápida (nombre, número, posiciones, pie dominante) y la opción de sacarlo a la banca.
 - Colores por posición para identificar roles de un vistazo.
+- **Banca con desplazamiento lateral**: cuando hay más jugadores de los que entran en el ancho visible (equipos con alta asistencia), aparecen flechas de navegación a los costados para deslizar y acceder a todos — antes, con 5+ jugadores en banca, los últimos quedaban inaccesibles en móvil porque el gesto de swipe competía con el `touch-action: none` que necesitan las tarjetas para el drag & drop.
 
 ### 5.5 Compartir formación
 - Genera una imagen PNG (cancha + banca + fecha/rival/hora) usando `html-to-image`.

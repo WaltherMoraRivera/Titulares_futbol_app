@@ -58,7 +58,7 @@ export default function AttendancePage() {
         <p className="py-8 text-center text-sm text-muted-foreground">
           No hay jugadores activos todavía.{" "}
           <Link href="/players" className="underline">
-            Agregá tu plantilla
+            Agrega tu plantilla
           </Link>{" "}
           para poder marcar asistencia.
         </p>

@@ -134,7 +134,7 @@ export default function PlayersPage() {
         {visiblePlayers.length === 0 && (
           <p className="py-8 text-center text-sm text-muted-foreground">
             {players.length === 0
-              ? "Todavía no hay jugadores. Agregá el primero o importá tu plantilla."
+              ? "Todavía no hay jugadores. Agrega el primero o importa tu plantilla."
               : "Sin resultados para la búsqueda."}
           </p>
         )}

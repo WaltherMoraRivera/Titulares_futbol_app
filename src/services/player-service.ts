@@ -38,6 +38,7 @@ export function searchPlayers(players: Player[], query: string): Player[] {
   return players.filter(
     (p) =>
       p.name.toLowerCase().includes(q) ||
+      p.alias?.toLowerCase().includes(q) ||
       String(p.number).includes(q) ||
       p.primaryPosition.toLowerCase().includes(q)
   );
@@ -64,6 +65,8 @@ export function parseImportFile(
   const rows = parseCsv(content);
   return rows.map((r) => ({
     name: r.name ?? r.nombre ?? "",
+    alias: r.alias ?? "",
+    showAlias: r.showAlias ?? r.mostrarAlias ?? "false",
     number: r.number ?? r.numero ?? r["número"] ?? "",
     primaryPosition: r.primaryPosition ?? r.posicionPrincipal ?? r["posición principal"] ?? "",
     secondaryPosition:
@@ -76,6 +79,8 @@ export function parseImportFile(
 export function exportPlayersToJson(players: Player[]): string {
   const exportable = players.map((p) => ({
     name: p.name,
+    alias: p.alias,
+    showAlias: p.showAlias,
     number: p.number,
     primaryPosition: p.primaryPosition,
     secondaryPosition: p.secondaryPosition,
