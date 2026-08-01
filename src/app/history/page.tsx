@@ -28,7 +28,7 @@ export default function HistoryPage() {
       {lineups.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">
           Todavía no hay formaciones guardadas. Se guardan automáticamente cuando
-          compartís una formación o armás una nueva.
+          compartes una formación o armas una nueva.
         </p>
       ) : (
         <div className="space-y-2">

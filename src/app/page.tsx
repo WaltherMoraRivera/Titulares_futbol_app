@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Users, PlayCircle, History } from "lucide-react";
+import { useAuthStore } from "@/hooks/use-auth";
+import { Users, PlayCircle, History, KeyRound, LogOut } from "lucide-react";
 
 const container = {
   hidden: {},
@@ -17,6 +19,12 @@ const item = {
 };
 
 export default function Home() {
+  const { loaded, teamName, role, playerId, load, logout } = useAuthStore();
+
+  useEffect(() => {
+    if (!loaded) load();
+  }, [loaded, load]);
+
   return (
     <motion.div
       className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-6 p-6"
@@ -70,6 +78,26 @@ export default function Home() {
           </Link>
         </motion.div>
       </div>
+
+      <motion.div variants={item} className="text-center text-sm">
+        {teamName ? (
+          <p className="flex items-center justify-center gap-2 text-muted-foreground">
+            Conectado a <span className="font-medium text-foreground">{teamName}</span> ·{" "}
+            {role === "dt" ? "DT/Capitán" : playerId ? "Jugador" : "sin reclamar"}
+            <button
+              onClick={logout}
+              className="ml-1 inline-flex items-center gap-1 text-primary hover:underline"
+            >
+              <LogOut className="h-3 w-3" /> Salir
+            </button>
+          </p>
+        ) : (
+          <Link href="/login" className="inline-flex items-center gap-1.5 text-primary hover:underline">
+            <KeyRound className="h-3.5 w-3.5" />
+            Ingresar con código de equipo
+          </Link>
+        )}
+      </motion.div>
     </motion.div>
   );
 }

@@ -200,7 +200,13 @@ interface MatchLineup {
 - Lista cronológica de formaciones pasadas (fecha, rival, esquema, resultado).
 - Detalle por formación con la cancha en modo solo lectura y campos editables de resultado/comentarios.
 
-### 5.7 PWA
+### 5.7 Login por código de equipo (`/login`) — Fase 0
+
+- Sin usuario/contraseña: se ingresa un código de equipo (uno para jugadores, otro para DT/capitán) y el dispositivo queda identificado. Ver detalle técnico en "Backend (Supabase)" en la sección 8.
+- El jugador elige su número de camiseta de la plantilla real para "reclamarlo"; desde ese momento su edición de perfil queda asociada a él.
+- La sesión persiste sola entre visitas (no hay que reingresar el código cada vez).
+
+### 5.8 PWA
 - Instalable (`manifest.ts`, ícono = miniatura cuadrada del escudo de Las Condes FC (`public/icon.png`, 1254×1254), soporte iOS).
 - Service worker con estrategia cache-first para uso básico offline (activo solo en producción, para no interferir con el hot-reload en desarrollo).
 
@@ -348,12 +354,19 @@ El jugador, una vez dentro, reclama su número de camiseta de la plantilla (o cr
 **Esquema** (`supabase/migrations/`):
 - `0001_init.sql` — tablas (`teams`, `players`, `profiles`, `matches`, `match_attendance`), funciones de apoyo (`current_team_id`, `current_role`, `current_player_id`, todas `security definer` para evitar recursión de RLS sobre `profiles`), las funciones `claim_team(code)` y `claim_player(player_id)`, y las políticas de Row Level Security de cada tabla.
 - `0002_seed_team.sql` — crea el equipo inicial ("Las Condes FC") con sus dos códigos.
+- `0003_get_my_team.sql` — función `get_my_team()`, para que un dispositivo ya logueado recupere su equipo/rol/jugador reclamado sin volver a pedir el código (rehidrata la sesión al recargar la app).
 
-`teams` **no tiene policy de select** a propósito: la única forma de leer/usar los códigos es a través de la función `claim_team`, así un código incorrecto no revela nada de la tabla.
+`teams` **no tiene policy de select** a propósito: la única forma de leer/usar los códigos es a través de las funciones `claim_team`/`get_my_team`, así un código incorrecto no revela nada de la tabla.
 
-Como el login automático del CLI de Supabase no funciona en este entorno de desarrollo (necesita una terminal interactiva), las migraciones se pegan y corren manualmente en el **SQL Editor** del panel de Supabase, en vez de `supabase db push`. Hay que tener también habilitado **Authentication → Sign In / Providers → Anonymous Sign-ins** en el panel para que el login sin contraseña funcione.
+Como el login automático del CLI de Supabase no funciona en este entorno de desarrollo (necesita una terminal interactiva), las migraciones se pegan y corren manualmente en el **SQL Editor** del panel de Supabase, en vez de `supabase db push`. También hace falta tener habilitado **Authentication → Sign In / Providers → Anonymous Sign-ins** (con el botón "Save" de esa sección) para que el login sin contraseña funcione — quedó verificado con un script de prueba end-to-end.
 
-**Estado:** esquema y funciones definidos y versionados en el repo. Falta: correrlos en el proyecto real, conectar el flujo de login/reclamo en la UI, y migrar jugadores/partidos de Local Storage a Supabase (hoy `src/lib/supabase/client.ts` existe pero todavía no lo consume ninguna pantalla).
+**Siembra de datos:** `supabase/seed-players.js <código>` — script reutilizable que carga una plantilla de jugadores a la tabla `players` de un equipo. Ya se usó una vez para migrar los 16 jugadores de `src/data/default-players.ts` al proyecto real.
+
+**Pantalla de login** (`/login`, `src/hooks/use-auth.ts`): ingresás el código → si es de jugador, elegís tu número de camiseta de la plantilla (`claim_player`); si es de DT/capitán, entrás directo con permisos de administración. La sesión anónima de Supabase persiste sola en `localStorage` (`sb-<project-ref>-auth-token`), así que no hay que volver a ingresar el código en cada visita — al cargar, `use-auth.ts` llama a `get_my_team()` para recuperar el estado. Se agregó también un indicador de sesión y un botón "Salir" en el Home.
+
+Probado de punta a punta: login con código de jugador, listado de plantilla, reclamo de un número, y confirmación de que `players.claimed_by` quedó escrito en la base real.
+
+**Estado:** login y reclamo de jugador funcionando en producción real (no simulado). Falta: pantalla de alta para DT/capitán (crear partidos), y migrar el resto de las pantallas (jugadores, asistencia, formación, historial) de Local Storage a Supabase — hoy conviven ambos: el login ya escribe en Supabase, pero el resto de la app todavía lee/escribe en Local Storage sin cruce entre ambos.
 
 ### Repositorio y paquete Android
 
@@ -370,7 +383,7 @@ Como el login automático del CLI de Supabase no funciona en este entorno de des
 
 Visión a futuro: que la app reemplace a WhatsApp como canal central del equipo — partidos agendados, asistencia confirmada por cada jugador desde su propio teléfono, formación e instrucciones tácticas visibles para todos el día del partido, y registro histórico de resultados/goleadores/tarjetas. Fases propuestas:
 
-- **Fase 0 — Backend y cuentas** *(prerequisito de las fases 2 en adelante)*: la app hoy es de un solo dispositivo (Local Storage). Para que un jugador marque asistencia desde su celular y el DT lo vea en el suyo, hace falta un backend real (`SupabaseAdapter`, ya contemplado en la arquitectura) + autenticación con roles (DT/capitán vs. jugador).
+- **Fase 0 — Backend y cuentas** 🟡 en curso — login por código y reclamo de jugador ya funcionan sobre Supabase real (`/login`). Falta migrar el resto de las pantallas (jugadores, asistencia, formación, historial) de Local Storage a Supabase antes de poder avanzar a la Fase 2.
 - **Fase 1 — Panel táctico (MVP)** ✅ completado — instrucciones por jugador, ver arriba.
 - **Fase 2 — Partidos agendados**: DT/capitán crea partidos (fecha, hora, rival); depende de Fase 0.
 - **Fase 3 — Vista del jugador**: cada jugador ve su próximo partido, confirma asistencia, y el día del partido ve la formación + instrucciones; depende de Fase 0 y 2.
