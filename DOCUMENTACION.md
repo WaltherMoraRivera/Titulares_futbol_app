@@ -317,6 +317,12 @@ npm run dev
 
 Abrir `http://localhost:3000`. Para probar desde el celular en la misma red, agregar la IP local (Wi-Fi, no la de un adaptador virtual tipo VirtualBox) a `allowedDevOrigins` en `next.config.ts` — Next.js lo indica en la consola si detecta un origen no permitido. **Importante:** por HTTP plano (sin HTTPS), la Web Share API no está disponible, así que "Compartir" siempre descarga el archivo en vez de abrir el menú nativo — eso es una restricción del navegador, no un bug (ver sección 7).
 
+Variables de entorno necesarias en `.env.local` (no versionado, ver sección "Backend (Supabase)" más abajo):
+```
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+```
+
 ### Producción (Vercel)
 
 La app está desplegada en Vercel:
@@ -326,6 +332,28 @@ La app está desplegada en Vercel:
 - Cuenta: `walthermorarivera`, proyecto `z-labs2/formacion-ya`.
 - Conectado al repositorio GitHub (`WaltherMoraRivera/Titulares_futbol_app`, rama `main`): **cada `git push` a `main` dispara un deploy automático a producción**. Ya no hace falta correr `vercel --prod` a mano.
 - Al estar en HTTPS, ahí sí funciona la Web Share API completa (compartir la formación directo a WhatsApp desde el celular).
+
+### Backend (Supabase) — Fase 0
+
+Proyecto Supabase: `mbnixqfgiebaxzfoxeea` (región Sudamérica). Se usa el cliente estándar de `@supabase/supabase-js` (`src/lib/supabase/client.ts`) — no `@supabase/ssr`, porque toda la app es "use client" y no depende de sesión en el servidor.
+
+**Autenticación:** sin contraseñas individuales. Cada dispositivo inicia sesión de forma anónima (Supabase Anonymous Auth) y luego "reclama" un equipo con un código compartido:
+- Código de **jugador** → rol `player`.
+- Código de **DT/Capitán** → rol `dt`, con permisos para editar cualquier jugador, crear/editar partidos y dejar instrucciones tácticas.
+
+El jugador, una vez dentro, reclama su número de camiseta de la plantilla (o crea uno nuevo si no existe) y desde ahí puede editar su propio perfil (nombre, alias, pie hábil, posiciones) sin depender del DT.
+
+**Trade-off de seguridad asumido conscientemente** (decisión del usuario, no un descuido): al ser códigos compartidos y no cuentas personales, cualquiera con el código de jugador puede "reclamar" el número de otro. Aceptable para uso interno de un equipo amateur; los códigos se pueden regenerar en cualquier momento con un `UPDATE` a `teams`. Si la app se vuelve un producto de cara a otros equipos, este es el primer punto a endurecer (por ejemplo, códigos de un solo uso o verificación por WhatsApp/SMS).
+
+**Esquema** (`supabase/migrations/`):
+- `0001_init.sql` — tablas (`teams`, `players`, `profiles`, `matches`, `match_attendance`), funciones de apoyo (`current_team_id`, `current_role`, `current_player_id`, todas `security definer` para evitar recursión de RLS sobre `profiles`), las funciones `claim_team(code)` y `claim_player(player_id)`, y las políticas de Row Level Security de cada tabla.
+- `0002_seed_team.sql` — crea el equipo inicial ("Las Condes FC") con sus dos códigos.
+
+`teams` **no tiene policy de select** a propósito: la única forma de leer/usar los códigos es a través de la función `claim_team`, así un código incorrecto no revela nada de la tabla.
+
+Como el login automático del CLI de Supabase no funciona en este entorno de desarrollo (necesita una terminal interactiva), las migraciones se pegan y corren manualmente en el **SQL Editor** del panel de Supabase, en vez de `supabase db push`. Hay que tener también habilitado **Authentication → Sign In / Providers → Anonymous Sign-ins** en el panel para que el login sin contraseña funcione.
+
+**Estado:** esquema y funciones definidos y versionados en el repo. Falta: correrlos en el proyecto real, conectar el flujo de login/reclamo en la UI, y migrar jugadores/partidos de Local Storage a Supabase (hoy `src/lib/supabase/client.ts` existe pero todavía no lo consume ninguna pantalla).
 
 ### Repositorio y paquete Android
 
