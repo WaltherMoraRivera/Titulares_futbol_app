@@ -1,0 +1,147 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { AnimatePresence, motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { useMatchesStore } from "@/hooks/use-matches";
+import { useAuthStore } from "@/hooks/use-auth";
+import { MatchForm } from "@/features/matches/match-form";
+import { Match } from "@/types";
+import { ArrowLeft, Plus, KeyRound, CalendarDays } from "lucide-react";
+
+function formatDate(dateStr: string) {
+  const date = new Date(dateStr + "T00:00:00");
+  return date.toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" });
+}
+
+export default function MatchesPage() {
+  const { matches, loaded, load, addMatch } = useMatchesStore();
+  const { loaded: authLoaded, teamId, role, load: loadAuth } = useAuthStore();
+  const [formOpen, setFormOpen] = useState(false);
+
+  useEffect(() => {
+    if (!authLoaded) loadAuth();
+  }, [authLoaded, loadAuth]);
+
+  useEffect(() => {
+    if (authLoaded) load();
+  }, [authLoaded, teamId, load]);
+
+  const isDt = role === "dt";
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  const { upcoming, past } = useMemo(() => {
+    const upcoming: Match[] = [];
+    const past: Match[] = [];
+    for (const m of matches) {
+      (m.date >= todayStr ? upcoming : past).push(m);
+    }
+    past.reverse();
+    return { upcoming, past };
+  }, [matches, todayStr]);
+
+  if (authLoaded && !teamId) {
+    return (
+      <div className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+        <p className="text-sm text-muted-foreground">
+          Inicia sesión con el código de tu equipo para ver los partidos.
+        </p>
+        <Link href="/login">
+          <Button>
+            <KeyRound className="mr-1 h-4 w-4" />
+            Ingresar con código
+          </Button>
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-2xl p-4 pb-24">
+      <header className="mb-4 flex items-center gap-3">
+        <Link href="/">
+          <Button size="icon" variant="ghost" aria-label="Volver al inicio">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        </Link>
+        <h1 className="flex-1 text-xl font-semibold">Partidos</h1>
+        {isDt && (
+          <Button onClick={() => setFormOpen(true)}>
+            <Plus className="mr-1 h-4 w-4" />
+            Agendar
+          </Button>
+        )}
+      </header>
+
+      {loaded && matches.length === 0 && (
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          {isDt
+            ? "Todavía no agendaste ningún partido."
+            : "Todavía no hay partidos agendados por el DT/capitán."}
+        </p>
+      )}
+
+      {upcoming.length > 0 && (
+        <div className="mb-6 space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">Próximos</p>
+          <AnimatePresence initial={false}>
+            {upcoming.map((match) => (
+              <MatchRow key={match.id} match={match} />
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
+
+      {past.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">Pasados</p>
+          <AnimatePresence initial={false}>
+            {past.map((match) => (
+              <MatchRow key={match.id} match={match} />
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
+
+      <MatchForm
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        onSubmit={async (input) => {
+          await addMatch(input);
+        }}
+      />
+    </div>
+  );
+}
+
+function MatchRow({ match }: { match: Match }) {
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.18 }}
+    >
+      <Link
+        href={`/matches/${match.id}`}
+        className="flex items-center gap-3 rounded-lg border bg-card p-3 transition-colors hover:border-primary"
+      >
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+          <CalendarDays className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-medium capitalize">
+            {formatDate(match.date)}
+            {match.kickoffTime ? ` · ${match.kickoffTime}` : ""}
+          </p>
+          <p className="truncate text-sm text-muted-foreground">
+            {match.opponent ? `vs ${match.opponent}` : "Rival por definir"}
+            {match.location ? ` · ${match.location}` : ""}
+          </p>
+        </div>
+      </Link>
+    </motion.div>
+  );
+}

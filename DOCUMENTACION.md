@@ -50,8 +50,12 @@ formacion-ya/
 │  │  ├─ layout.tsx              # layout raíz, metadata, tema, backdrop decorativo
 │  │  ├─ manifest.ts             # manifest de la PWA
 │  │  ├─ page.tsx                # Home
-│  │  ├─ players/page.tsx        # gestión de jugadores
-│  │  ├─ attendance/page.tsx     # asistencia al partido
+│  │  ├─ login/page.tsx          # ingreso por código de equipo (Fase 0)
+│  │  ├─ players/page.tsx        # gestión de jugadores (Supabase)
+│  │  ├─ matches/                # partidos agendados (Fase 2)
+│  │  │  ├─ page.tsx             # listado (próximos / pasados)
+│  │  │  └─ [id]/page.tsx        # detalle + asistencia anticipada
+│  │  ├─ attendance/page.tsx     # asistencia "del día" para armar formación (todavía Local Storage)
 │  │  ├─ formation/page.tsx      # selector de esquema táctico
 │  │  ├─ board/page.tsx          # constructor (cancha + banca + compartir)
 │  │  └─ history/
@@ -200,7 +204,20 @@ interface MatchLineup {
 - El jugador elige su número de camiseta de la plantilla real para "reclamarlo"; desde ese momento su edición de perfil queda asociada a él.
 - La sesión persiste sola entre visitas (no hay que reingresar el código cada vez).
 
-### 5.8 PWA
+### 5.8 Partidos agendados (`/matches`) — Fase 2
+
+- **DT/Capitán** agenda partidos (fecha, hora, rival, lugar), y puede editarlos o eliminarlos.
+- Todos los miembros del equipo ven el listado, separado en "Próximos" y "Pasados".
+- En el detalle de cada partido (`/matches/[id]`), la plantilla completa aparece con su estado de asistencia (pendiente / confirmado / no va):
+  - **Jugador**: solo puede marcar su propia fila (botones de confirmar/rechazar); las de los demás se muestran como insignia de solo lectura.
+  - **DT/Capitán**: puede marcar la asistencia de cualquier jugador (por ejemplo, si alguien avisa por WhatsApp en vez de por la app).
+- Contador en vivo de "X confirmados de Y" en la parte superior.
+- Igual que en jugadores, la restricción de UI es una comodidad — las policies de RLS (`attendance_upsert_own_or_dt`, `matches_write_dt`) son las que realmente bloquean del lado del servidor.
+- Usa las tablas `matches` y `match_attendance` ya creadas en la Fase 0 (`0001_init.sql`); no hizo falta ninguna migración nueva.
+
+Todavía no conectado con el constructor de formación (`/board`): agendar un partido y armar su alineación son, por ahora, dos flujos separados. Esa conexión es la Fase 3 ("vista del jugador").
+
+### 5.9 PWA
 - Instalable (`manifest.ts`, ícono = miniatura cuadrada del escudo de Las Condes FC (`public/icon.png`, 1254×1254), soporte iOS).
 - Service worker con estrategia cache-first para uso básico offline (activo solo en producción, para no interferir con el hot-reload en desarrollo).
 
@@ -360,7 +377,7 @@ Como el login automático del CLI de Supabase no funciona en este entorno de des
 
 Probado de punta a punta: login con código de jugador, listado de plantilla, reclamo de un número, y confirmación de que `players.claimed_by` quedó escrito en la base real.
 
-**Estado:** login, reclamo de jugador **y gestión de la plantilla** (`/players`) funcionando en producción real contra Supabase, con permisos por rol probados de punta a punta (edición propia para jugador, control total para DT/capitán, verificado también que las políticas de RLS bloquean del lado del servidor, no solo en la interfaz). Falta: pantalla de alta para DT/capitán (crear partidos — Fase 2), y migrar asistencia/formación/historial de Local Storage a Supabase (depende de que existan partidos agendados para tener sentido).
+**Estado:** login, reclamo de jugador, gestión de la plantilla (`/players`) **y partidos agendados con asistencia anticipada** (`/matches`, Fase 2) funcionando en producción real contra Supabase, con permisos por rol probados de punta a punta (edición propia para jugador, control total para DT/capitán, verificado también que las políticas de RLS bloquean del lado del servidor, no solo en la interfaz). Falta: conectar `/matches` con el constructor de formación (`/board`) — hoy son flujos separados — y migrar la asistencia "del día"/formación/historial de Local Storage a Supabase (Fase 3).
 
 ### Repositorio y paquete Android
 
@@ -371,15 +388,15 @@ Probado de punta a punta: login con código de jugador, listado de plantilla, re
 
 ## 9. Estado del proyecto y pendientes
 
-**Completado:** gestión de jugadores (con plantilla por defecto precargada, alias por jugador), asistencia, constructor de formación con drag & drop (con `DragOverlay` para que la tarjeta arrastrada no se recorte ni desaparezca, banca con desplazamiento lateral), panel de instrucciones tácticas por jugador/partido, compartir por imagen con Web Share API (incluye instrucciones tácticas), historial, animaciones, responsive, PWA instalable con ícono de marca, tema visual oscuro con paleta del escudo de Las Condes FC, despliegue en producción con HTTPS + auto-deploy desde GitHub, paquete `.apk` para instalación directa en Android.
+**Completado:** login por código de equipo con roles (Fase 0), gestión de jugadores sobre Supabase con alias y permisos por rol, partidos agendados con asistencia anticipada (Fase 2), asistencia "del día" y constructor de formación con drag & drop (con `DragOverlay` para que la tarjeta arrastrada no se recorte ni desaparezca, banca con desplazamiento lateral), panel de instrucciones tácticas por jugador/partido, compartir por imagen con Web Share API (incluye instrucciones tácticas), historial, animaciones, responsive, PWA instalable con ícono de marca, tema visual oscuro con paleta del escudo de Las Condes FC, despliegue en producción con HTTPS + auto-deploy desde GitHub, paquete `.apk` para instalación directa en Android.
 
 ### Roadmap: de "ver la formación" a plataforma del equipo
 
 Visión a futuro: que la app reemplace a WhatsApp como canal central del equipo — partidos agendados, asistencia confirmada por cada jugador desde su propio teléfono, formación e instrucciones tácticas visibles para todos el día del partido, y registro histórico de resultados/goleadores/tarjetas. Fases propuestas:
 
-- **Fase 0 — Backend y cuentas** 🟡 en curso — login por código, reclamo de jugador y gestión de plantilla (`/players`) ya funcionan sobre Supabase real, con permisos por rol. Falta migrar asistencia/formación/historial de Local Storage a Supabase antes de poder avanzar de lleno a la Fase 2.
+- **Fase 0 — Backend y cuentas** ✅ completado — login por código, reclamo de jugador y gestión de plantilla (`/players`) funcionando sobre Supabase real, con permisos por rol.
 - **Fase 1 — Panel táctico (MVP)** ✅ completado — instrucciones por jugador, ver arriba.
-- **Fase 2 — Partidos agendados**: DT/capitán crea partidos (fecha, hora, rival); depende de Fase 0.
+- **Fase 2 — Partidos agendados** ✅ completado — DT/capitán agenda partidos, todo el equipo marca/ve asistencia anticipada, ver arriba.
 - **Fase 3 — Vista del jugador**: cada jugador ve su próximo partido, confirma asistencia, y el día del partido ve la formación + instrucciones; depende de Fase 0 y 2.
 - **Fase 4 — Registro post-partido**: resultado, goleadores, tarjetas, notas del DT; depende de Fase 2.
 - **Fase 5 — Estadísticas**: agregación de goles/tarjetas/convocatorias por jugador a lo largo de la temporada; depende de Fase 4.
