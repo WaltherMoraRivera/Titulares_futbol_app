@@ -11,9 +11,17 @@ interface PlayerRowProps {
   player: Player;
   onEdit: (player: Player) => void;
   onDelete: (player: Player) => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
-export function PlayerRow({ player, onEdit, onDelete }: PlayerRowProps) {
+export function PlayerRow({
+  player,
+  onEdit,
+  onDelete,
+  canEdit = true,
+  canDelete = true,
+}: PlayerRowProps) {
   const color = player.color ?? getPositionColor(player.primaryPosition);
   const usingAlias = !!(player.showAlias && player.alias?.trim());
 
@@ -44,24 +52,30 @@ export function PlayerRow({ player, onEdit, onDelete }: PlayerRowProps) {
         </div>
       </div>
 
-      <div className="flex shrink-0 gap-1">
-        <Button
-          size="icon"
-          variant="ghost"
-          aria-label={`Editar a ${player.name}`}
-          onClick={() => onEdit(player)}
-        >
-          <Pencil className="h-4 w-4" />
-        </Button>
-        <Button
-          size="icon"
-          variant="ghost"
-          aria-label={`Eliminar a ${player.name}`}
-          onClick={() => onDelete(player)}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
+      {(canEdit || canDelete) && (
+        <div className="flex shrink-0 gap-1">
+          {canEdit && (
+            <Button
+              size="icon"
+              variant="ghost"
+              aria-label={`Editar a ${player.name}`}
+              onClick={() => onEdit(player)}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
+          {canDelete && (
+            <Button
+              size="icon"
+              variant="ghost"
+              aria-label={`Eliminar a ${player.name}`}
+              onClick={() => onDelete(player)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

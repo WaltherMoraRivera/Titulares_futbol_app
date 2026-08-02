@@ -13,12 +13,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { usePlayersStore } from "@/hooks/use-players";
+import { useAuthStore } from "@/hooks/use-auth";
 import { PlayerForm } from "@/features/players/player-form";
 import { PlayerRow } from "@/features/players/player-row";
 import { ImportDialog } from "@/features/players/import-dialog";
 import { exportPlayersToJson, searchPlayers, sortPlayers } from "@/services/player-service";
 import { Player, PlayerSortField } from "@/types";
-import { ArrowLeft, Plus, Upload, Download, Search } from "lucide-react";
+import { ArrowLeft, Plus, Upload, Download, Search, KeyRound } from "lucide-react";
 
 const SORT_ITEMS: Record<PlayerSortField, string> = {
   number: "Por número",
@@ -29,6 +30,7 @@ const SORT_ITEMS: Record<PlayerSortField, string> = {
 export default function PlayersPage() {
   const { players, loaded, load, addPlayer, addPlayers, updatePlayer, removePlayer } =
     usePlayersStore();
+  const { loaded: authLoaded, teamId, role, playerId, load: loadAuth } = useAuthStore();
 
   const [query, setQuery] = useState("");
   const [sortField, setSortField] = useState<PlayerSortField>("number");
@@ -37,8 +39,14 @@ export default function PlayersPage() {
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
 
   useEffect(() => {
-    if (!loaded) load();
-  }, [loaded, load]);
+    if (!authLoaded) loadAuth();
+  }, [authLoaded, loadAuth]);
+
+  useEffect(() => {
+    if (authLoaded) load();
+  }, [authLoaded, teamId, load]);
+
+  const isDt = role === "dt";
 
   const visiblePlayers = useMemo(() => {
     return sortPlayers(searchPlayers(players, query), sortField);
@@ -52,6 +60,7 @@ export default function PlayersPage() {
   }
 
   function handleEditClick(player: Player) {
+    if (!isDt && player.id !== playerId) return;
     setEditingPlayer(player);
     setFormOpen(true);
   }
@@ -71,6 +80,22 @@ export default function PlayersPage() {
     link.download = `jugadores-${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
     URL.revokeObjectURL(url);
+  }
+
+  if (authLoaded && !teamId) {
+    return (
+      <div className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+        <p className="text-sm text-muted-foreground">
+          Inicia sesión con el código de tu equipo para ver la plantilla.
+        </p>
+        <Link href="/login">
+          <Button>
+            <KeyRound className="mr-1 h-4 w-4" />
+            Ingresar con código
+          </Button>
+        </Link>
+      </div>
+    );
   }
 
   return (
@@ -110,31 +135,35 @@ export default function PlayersPage() {
           </SelectContent>
         </Select>
 
-        <Button variant="outline" onClick={() => setImportOpen(true)}>
-          <Upload className="mr-1 h-4 w-4" />
-          Importar
-        </Button>
+        {isDt && (
+          <>
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Upload className="mr-1 h-4 w-4" />
+              Importar
+            </Button>
 
-        <Button
-          variant="outline"
-          onClick={handleExport}
-          disabled={visiblePlayers.length === 0}
-        >
-          <Download className="mr-1 h-4 w-4" />
-          Exportar
-        </Button>
+            <Button
+              variant="outline"
+              onClick={handleExport}
+              disabled={visiblePlayers.length === 0}
+            >
+              <Download className="mr-1 h-4 w-4" />
+              Exportar
+            </Button>
 
-        <Button onClick={handleAddClick}>
-          <Plus className="mr-1 h-4 w-4" />
-          Agregar
-        </Button>
+            <Button onClick={handleAddClick}>
+              <Plus className="mr-1 h-4 w-4" />
+              Agregar
+            </Button>
+          </>
+        )}
       </div>
 
       <div className="space-y-2">
         {visiblePlayers.length === 0 && (
           <p className="py-8 text-center text-sm text-muted-foreground">
             {players.length === 0
-              ? "Todavía no hay jugadores. Agrega el primero o importa tu plantilla."
+              ? "Todavía no hay jugadores en el equipo."
               : "Sin resultados para la búsqueda."}
           </p>
         )}
@@ -148,7 +177,13 @@ export default function PlayersPage() {
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.18 }}
             >
-              <PlayerRow player={player} onEdit={handleEditClick} onDelete={handleDelete} />
+              <PlayerRow
+                player={player}
+                onEdit={handleEditClick}
+                onDelete={handleDelete}
+                canEdit={isDt || player.id === playerId}
+                canDelete={isDt}
+              />
             </motion.div>
           ))}
         </AnimatePresence>
@@ -159,6 +194,7 @@ export default function PlayersPage() {
         onOpenChange={setFormOpen}
         player={editingPlayer}
         existingNumbers={existingNumbers}
+        restrictedMode={!isDt}
         onSubmit={async (input) => {
           if (editingPlayer) {
             await updatePlayer(editingPlayer.id, input);
@@ -168,14 +204,16 @@ export default function PlayersPage() {
         }}
       />
 
-      <ImportDialog
-        open={importOpen}
-        onOpenChange={setImportOpen}
-        existingNumbers={existingNumbers}
-        onImport={async (inputs) => {
-          await addPlayers(inputs);
-        }}
-      />
+      {isDt && (
+        <ImportDialog
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          existingNumbers={existingNumbers}
+          onImport={async (inputs) => {
+            await addPlayers(inputs);
+          }}
+        />
+      )}
     </div>
   );
 }

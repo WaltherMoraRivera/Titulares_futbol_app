@@ -64,43 +64,37 @@ formacion-ya/
 │  │  ├─ board/                   # cancha, banca, tarjeta de jugador, export, compartir
 │  │  ├─ history/                 # tarjeta de historial
 │  │  └─ pwa/                     # registro del service worker
-│  ├─ hooks/                      # stores Zustand (use-players, use-attendance, use-board, use-history)
-│  ├─ data/
-│  │  └─ default-players.ts      # plantilla de jugadores por defecto (siembra inicial)
-│  ├─ services/                   # lógica de negocio + acceso a storage
-│  ├─ storage/                    # capa de abstracción de persistencia
+│  ├─ hooks/                      # stores Zustand (use-players, use-attendance, use-board, use-history, use-auth)
+│  ├─ lib/supabase/               # cliente de Supabase para el navegador
+│  ├─ services/                   # lógica de negocio + acceso a storage/Supabase
+│  ├─ storage/                    # capa de abstracción de persistencia (Local Storage)
 │  ├─ types/                      # tipos de dominio (Player, FormationTemplate, MatchLineup...)
 │  └─ utils/                      # helpers puros (colores, presets, validación, CSV, export de imagen)
 ```
 
-### Capa de persistencia (clave para migrar a backend)
+### Persistencia: estado de la migración a Supabase
 
-```ts
-// storage/adapter.ts
-interface IStorageAdapter {
-  get<T>(key: string): Promise<T | null>;
-  set<T>(key: string, value: T): Promise<void>;
-  remove(key: string): Promise<void>;
-}
-```
+El proyecto está a mitad de camino entre Local Storage (diseño original) y Supabase (Fase 0 en curso). Estado actual por dominio:
 
-Hoy la única implementación es `LocalStorageAdapter`. El día que se quiera pasar a Supabase/Firebase, solo hay que:
-1. Crear `SupabaseAdapter implements IStorageAdapter`.
-2. Cambiar la instancia exportada en `storage/index.ts`.
+| Dominio | Dónde vive hoy | Alcance |
+|---|---|---|
+| **Jugadores** (`players`) | ✅ Supabase | Compartido entre todos los dispositivos del equipo, con permisos por rol (ver sección "Backend (Supabase)"). |
+| Asistencia actual, formación en curso, historial | Local Storage (`IStorageAdapter` / `LocalStorageAdapter`) | Todavía por dispositivo — depende de la Fase 2 (partidos agendados) para tener sentido migrarlos, ya que hoy no existe un `match_id` al cual atarlos. |
 
-Ningún componente ni servicio necesita reescribirse.
+`hooks/use-players.ts` mantiene exactamente la misma interfaz pública de siempre (`players`, `loaded`, `load`, `addPlayer`, `addPlayers`, `updatePlayer`, `removePlayer`) — por eso `/attendance`, `/formation`, `/board` y `/history` no necesitaron ningún cambio: solo consumen la lista de jugadores del store, sin saber de dónde sale.
 
-**Claves usadas en Local Storage** (`storage/keys.ts`):
-- `formacion-ya:players`
+**Claves usadas en Local Storage** (`storage/keys.ts`, ya sin `players`):
 - `formacion-ya:lineups` (historial)
 - `formacion-ya:current-attendance`
 - `formacion-ya:current-lineup`
 
-### Plantilla de jugadores por defecto
+### Permisos por rol en `/players`
 
-`src/data/default-players.ts` contiene la plantilla real del equipo (16 jugadores, con posición principal/secundaria, pie dominante y número), tomada de `Listado_Jugadores/jugadores-2026-07-31.json`.
+- **DT/Capitán**: alta, edición y eliminación de cualquier jugador; importar/exportar plantilla.
+- **Jugador**: sin esos botones. Solo puede editar su propio perfil ya reclamado (botón "Editar" visible únicamente en su propia fila), y el formulario oculta los campos de administración de plantilla (número de camiseta, activo/inactivo) — edita nombre, alias, "mostrar por alias", pie hábil y posiciones (`PlayerForm` con `restrictedMode`).
+- Sin sesión de equipo, `/players` (y por transitividad cualquier pantalla que dependa de la plantilla) muestra un llamado a iniciar sesión con el código, en vez de una lista vacía silenciosa.
 
-`hooks/use-players.ts` la usa como **siembra inicial**: la primera vez que `load()` corre en un navegador sin jugadores guardados (`formacion-ya:players` vacío), crea automáticamente esta plantilla y la persiste. Es el comportamiento por defecto actual **de forma temporal**, mientras se define la carga real de jugadores (pensado para pruebas). A partir de ahí el usuario puede editar, eliminar o importar otra plantilla libremente desde `/players` — la siembra no vuelve a ocurrir a menos que la lista quede completamente vacía de nuevo.
+La restricción de UI es una comodidad, no la barrera real: la seguridad de verdad está en las políticas de Row Level Security de Supabase (`players_update_own_or_dt`, `players_delete_dt`), así que aunque alguien manipule el cliente no puede editar ni borrar jugadores fuera de lo que su rol permite.
 
 ---
 
@@ -165,11 +159,11 @@ interface MatchLineup {
 ## 5. Funcionalidades implementadas
 
 ### 5.1 Gestión de jugadores (`/players`)
-- Plantilla de 16 jugadores cargada automáticamente por defecto en cualquier navegador nuevo (ver "Plantilla de jugadores por defecto" más abajo).
-- Alta, edición y eliminación.
+- Plantilla compartida en Supabase, la misma para todos los dispositivos del equipo (ver "Persistencia: estado de la migración a Supabase" más abajo).
+- Alta, edición y eliminación — restringido por rol: DT/capitán opera sobre cualquier jugador, un jugador solo sobre su propio perfil reclamado (ver "Permisos por rol en `/players`").
 - Búsqueda y orden (nombre, número, posición).
-- Importación masiva por **CSV** o **JSON**, con validación fila por fila (número duplicado, posición inválida) y vista previa de errores antes de confirmar.
-- Exportación del listado visible (respeta el filtro de búsqueda activo) a un archivo **JSON** descargable, en el mismo formato que espera la importación.
+- Importación masiva por **CSV** o **JSON** (solo DT/capitán), con validación fila por fila (número duplicado, posición inválida) y vista previa de errores antes de confirmar.
+- Exportación del listado visible a un archivo **JSON** descargable (solo DT/capitán), en el mismo formato que espera la importación.
 - **Alias por jugador**: campo opcional + casilla "Mostrar en la app por su alias, no por su nombre". Útil cuando hay varios jugadores con el mismo nombre de pila (ej. varios "Matías"). El nombre a mostrar se resuelve con `utils/player-display.ts` (`getDisplayName`) y se usa en todos lados: tarjetas de cancha/banca, listados, asistencia, panel de info y la imagen exportada. Cuando el alias está activo, el nombre real se sigue mostrando entre paréntesis o como dato secundario para no perder trazabilidad.
 
 ### 5.2 Asistencia (`/attendance`)
@@ -360,13 +354,13 @@ El jugador, una vez dentro, reclama su número de camiseta de la plantilla (o cr
 
 Como el login automático del CLI de Supabase no funciona en este entorno de desarrollo (necesita una terminal interactiva), las migraciones se pegan y corren manualmente en el **SQL Editor** del panel de Supabase, en vez de `supabase db push`. También hace falta tener habilitado **Authentication → Sign In / Providers → Anonymous Sign-ins** (con el botón "Save" de esa sección) para que el login sin contraseña funcione — quedó verificado con un script de prueba end-to-end.
 
-**Siembra de datos:** `supabase/seed-players.js <código>` — script reutilizable que carga una plantilla de jugadores a la tabla `players` de un equipo. Ya se usó una vez para migrar los 16 jugadores de `src/data/default-players.ts` al proyecto real.
+**Siembra de datos:** `supabase/seed-players.js <código>` — script reutilizable que carga una plantilla de jugadores a la tabla `players` de un equipo. Ya se usó una vez para migrar los 16 jugadores reales al proyecto de Supabase (la fuente original era `Listado_Jugadores/jugadores-2026-07-31.json`; el archivo intermedio `src/data/default-players.ts`, usado antes para sembrar Local Storage, ya no existe — quedó obsoleto en cuanto `players` pasó a vivir en Supabase).
 
 **Pantalla de login** (`/login`, `src/hooks/use-auth.ts`): ingresás el código → si es de jugador, elegís tu número de camiseta de la plantilla (`claim_player`); si es de DT/capitán, entrás directo con permisos de administración. La sesión anónima de Supabase persiste sola en `localStorage` (`sb-<project-ref>-auth-token`), así que no hay que volver a ingresar el código en cada visita — al cargar, `use-auth.ts` llama a `get_my_team()` para recuperar el estado. Se agregó también un indicador de sesión y un botón "Salir" en el Home.
 
 Probado de punta a punta: login con código de jugador, listado de plantilla, reclamo de un número, y confirmación de que `players.claimed_by` quedó escrito en la base real.
 
-**Estado:** login y reclamo de jugador funcionando en producción real (no simulado). Falta: pantalla de alta para DT/capitán (crear partidos), y migrar el resto de las pantallas (jugadores, asistencia, formación, historial) de Local Storage a Supabase — hoy conviven ambos: el login ya escribe en Supabase, pero el resto de la app todavía lee/escribe en Local Storage sin cruce entre ambos.
+**Estado:** login, reclamo de jugador **y gestión de la plantilla** (`/players`) funcionando en producción real contra Supabase, con permisos por rol probados de punta a punta (edición propia para jugador, control total para DT/capitán, verificado también que las políticas de RLS bloquean del lado del servidor, no solo en la interfaz). Falta: pantalla de alta para DT/capitán (crear partidos — Fase 2), y migrar asistencia/formación/historial de Local Storage a Supabase (depende de que existan partidos agendados para tener sentido).
 
 ### Repositorio y paquete Android
 
@@ -383,7 +377,7 @@ Probado de punta a punta: login con código de jugador, listado de plantilla, re
 
 Visión a futuro: que la app reemplace a WhatsApp como canal central del equipo — partidos agendados, asistencia confirmada por cada jugador desde su propio teléfono, formación e instrucciones tácticas visibles para todos el día del partido, y registro histórico de resultados/goleadores/tarjetas. Fases propuestas:
 
-- **Fase 0 — Backend y cuentas** 🟡 en curso — login por código y reclamo de jugador ya funcionan sobre Supabase real (`/login`). Falta migrar el resto de las pantallas (jugadores, asistencia, formación, historial) de Local Storage a Supabase antes de poder avanzar a la Fase 2.
+- **Fase 0 — Backend y cuentas** 🟡 en curso — login por código, reclamo de jugador y gestión de plantilla (`/players`) ya funcionan sobre Supabase real, con permisos por rol. Falta migrar asistencia/formación/historial de Local Storage a Supabase antes de poder avanzar de lleno a la Fase 2.
 - **Fase 1 — Panel táctico (MVP)** ✅ completado — instrucciones por jugador, ver arriba.
 - **Fase 2 — Partidos agendados**: DT/capitán crea partidos (fecha, hora, rival); depende de Fase 0.
 - **Fase 3 — Vista del jugador**: cada jugador ve su próximo partido, confirma asistencia, y el día del partido ve la formación + instrucciones; depende de Fase 0 y 2.

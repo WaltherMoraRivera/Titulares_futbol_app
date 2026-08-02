@@ -28,6 +28,9 @@ interface PlayerFormProps {
   player?: Player | null;
   existingNumbers: number[];
   onSubmit: (input: PlayerInput) => Promise<void>;
+  /** Modo autoedición de un jugador sobre su propio perfil: oculta los
+   * campos de administración de plantilla (número, activo). */
+  restrictedMode?: boolean;
 }
 
 const NONE = "__none__";
@@ -54,6 +57,7 @@ export function PlayerForm({
   player,
   existingNumbers,
   onSubmit,
+  restrictedMode = false,
 }: PlayerFormProps) {
   const [name, setName] = useState("");
   const [alias, setAlias] = useState("");
@@ -117,7 +121,9 @@ export function PlayerForm({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{player ? "Editar jugador" : "Agregar jugador"}</DialogTitle>
+          <DialogTitle>
+            {restrictedMode ? "Mi perfil" : player ? "Editar jugador" : "Agregar jugador"}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -154,18 +160,20 @@ export function PlayerForm({
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="number">Número</Label>
-              <Input
-                id="number"
-                type="number"
-                inputMode="numeric"
-                value={number}
-                onChange={(e) => setNumber(e.target.value)}
-              />
-            </div>
+            {!restrictedMode && (
+              <div className="space-y-1.5">
+                <Label htmlFor="number">Número</Label>
+                <Input
+                  id="number"
+                  type="number"
+                  inputMode="numeric"
+                  value={number}
+                  onChange={(e) => setNumber(e.target.value)}
+                />
+              </div>
+            )}
 
-            <div className="space-y-1.5">
+            <div className={restrictedMode ? "col-span-2 space-y-1.5" : "space-y-1.5"}>
               <Label>Pie dominante</Label>
               <Select
                 items={FOOT_ITEMS}
@@ -228,14 +236,16 @@ export function PlayerForm({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="active"
-              checked={active}
-              onCheckedChange={(v) => setActive(v === true)}
-            />
-            <Label htmlFor="active">Jugador activo</Label>
-          </div>
+          {!restrictedMode && (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="active"
+                checked={active}
+                onCheckedChange={(v) => setActive(v === true)}
+              />
+              <Label htmlFor="active">Jugador activo</Label>
+            </div>
+          )}
 
           {errors.length > 0 && (
             <ul className="text-sm text-destructive space-y-1">
