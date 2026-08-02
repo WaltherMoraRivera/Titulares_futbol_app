@@ -93,6 +93,13 @@ export function PlayerInfoSheet({
                 </div>
               )}
 
+              {showBenchAction && !onInstructionsChange && instructions?.trim() && (
+                <div className="space-y-1.5 pt-1">
+                  <Label>Instrucciones tácticas</Label>
+                  <p className="rounded-md border bg-muted/50 p-2 text-sm">{instructions}</p>
+                </div>
+              )}
+
               {showBenchAction && onBench && (
                 <Button
                   variant="outline"

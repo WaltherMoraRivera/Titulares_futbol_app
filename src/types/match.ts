@@ -1,3 +1,5 @@
+import { LineupAssignment } from "./lineup";
+
 export interface Match {
   id: string;
   date: string; // YYYY-MM-DD
@@ -16,5 +18,13 @@ export interface MatchAttendance {
   matchId: string;
   playerId: string;
   status: AttendanceStatus;
+  updatedAt: string;
+}
+
+export interface MatchLineupData {
+  matchId: string;
+  formationTemplateId: string;
+  assignments: LineupAssignment[];
+  bench: string[];
   updatedAt: string;
 }

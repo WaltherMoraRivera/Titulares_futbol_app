@@ -1,5 +1,12 @@
 import { supabase } from "@/lib/supabase/client";
-import { AttendanceStatus, Match, MatchAttendance, MatchInput } from "@/types";
+import {
+  AttendanceStatus,
+  LineupAssignment,
+  Match,
+  MatchAttendance,
+  MatchInput,
+  MatchLineupData,
+} from "@/types";
 
 interface MatchRow {
   id: string;
@@ -100,6 +107,61 @@ export async function fetchMatchAttendance(matchId: string): Promise<MatchAttend
     .eq("match_id", matchId);
   if (error) throw new Error(error.message);
   return (data as AttendanceRow[]).map(rowToAttendance);
+}
+
+interface MatchLineupRow {
+  match_id: string;
+  team_id: string;
+  formation_template_id: string;
+  assignments: LineupAssignment[];
+  bench: string[];
+  updated_at: string;
+}
+
+function rowToMatchLineup(row: MatchLineupRow): MatchLineupData {
+  return {
+    matchId: row.match_id,
+    formationTemplateId: row.formation_template_id,
+    assignments: row.assignments,
+    bench: row.bench,
+    updatedAt: row.updated_at,
+  };
+}
+
+export async function fetchMatchLineup(matchId: string): Promise<MatchLineupData | null> {
+  const { data, error } = await supabase
+    .from("match_lineups")
+    .select("*")
+    .eq("match_id", matchId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? rowToMatchLineup(data as MatchLineupRow) : null;
+}
+
+export async function saveMatchLineup(
+  teamId: string,
+  matchId: string,
+  formationTemplateId: string,
+  assignments: LineupAssignment[],
+  bench: string[]
+): Promise<MatchLineupData> {
+  const { data, error } = await supabase
+    .from("match_lineups")
+    .upsert(
+      {
+        match_id: matchId,
+        team_id: teamId,
+        formation_template_id: formationTemplateId,
+        assignments,
+        bench,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "match_id" }
+    )
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return rowToMatchLineup(data as MatchLineupRow);
 }
 
 export async function setAttendance(

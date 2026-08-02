@@ -15,7 +15,7 @@ import {
 import { getDisplayName } from "@/utils/player-display";
 import { getPositionColor } from "@/utils/position-colors";
 import { AttendanceStatus, Match, MatchAttendance } from "@/types";
-import { ArrowLeft, Pencil, Trash2, Check, X } from "lucide-react";
+import { ArrowLeft, Pencil, Trash2, Check, X, ShieldHalf } from "lucide-react";
 
 const STATUS_LABELS: Record<AttendanceStatus, string> = {
   pending: "Pendiente",
@@ -153,9 +153,16 @@ export default function MatchDetailPage({
             {match.kickoffTime ? ` · ${match.kickoffTime}` : ""}
             {match.location ? ` · ${match.location}` : ""}
           </p>
-          <p className="mb-4 text-sm text-muted-foreground">
+          <p className="mb-1 text-sm text-muted-foreground">
             {confirmedCount} confirmado{confirmedCount === 1 ? "" : "s"} de {players.length}
           </p>
+
+          <Link href={`/matches/${id}/board`} className="mb-4 block">
+            <Button variant="outline" className="w-full justify-start">
+              <ShieldHalf className="mr-2 h-4 w-4" />
+              {isDt ? "Armar formación" : "Ver formación"}
+            </Button>
+          </Link>
 
           <div className="space-y-2">
             {players.map((player) => {
