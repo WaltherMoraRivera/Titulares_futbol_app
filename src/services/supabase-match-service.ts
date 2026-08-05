@@ -324,6 +324,42 @@ export async function removeMatchCard(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+export async function fetchTeamAttendance(teamId: string): Promise<MatchAttendance[]> {
+  const { data, error } = await supabase
+    .from("match_attendance")
+    .select("*")
+    .eq("team_id", teamId);
+  if (error) throw new Error(error.message);
+  return (data as AttendanceRow[]).map(rowToAttendance);
+}
+
+export async function fetchTeamMatchResults(teamId: string): Promise<MatchResult[]> {
+  const { data, error } = await supabase
+    .from("match_results")
+    .select("*")
+    .eq("team_id", teamId);
+  if (error) throw new Error(error.message);
+  return (data as MatchResultRow[]).map(rowToMatchResult);
+}
+
+export async function fetchTeamMatchGoals(teamId: string): Promise<MatchGoal[]> {
+  const { data, error } = await supabase
+    .from("match_goals")
+    .select("*")
+    .eq("team_id", teamId);
+  if (error) throw new Error(error.message);
+  return (data as MatchGoalRow[]).map(rowToMatchGoal);
+}
+
+export async function fetchTeamMatchCards(teamId: string): Promise<MatchCard[]> {
+  const { data, error } = await supabase
+    .from("match_cards")
+    .select("*")
+    .eq("team_id", teamId);
+  if (error) throw new Error(error.message);
+  return (data as MatchCardRow[]).map(rowToMatchCard);
+}
+
 export async function setAttendance(
   teamId: string,
   matchId: string,

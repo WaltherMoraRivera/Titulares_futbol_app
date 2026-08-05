@@ -61,9 +61,10 @@ formacion-ya/
 │  │  ├─ attendance/page.tsx     # asistencia "del día" para armar formación (todavía Local Storage)
 │  │  ├─ formation/page.tsx      # selector de esquema táctico
 │  │  ├─ board/page.tsx          # constructor (cancha + banca + compartir)
-│  │  └─ history/
-│  │     ├─ page.tsx             # listado de formaciones pasadas
-│  │     └─ [id]/page.tsx        # detalle de una formación
+│  │  ├─ history/
+│  │  │  ├─ page.tsx             # listado de formaciones pasadas
+│  │  │  └─ [id]/page.tsx        # detalle de una formación
+│  │  └─ stats/page.tsx          # estadísticas de temporada (Fase 5, Supabase)
 │  ├─ components/ui/             # componentes shadcn/ui (base-ui)
 │  ├─ features/                  # componentes con lógica específica de dominio
 │  │  ├─ players/                # formulario, fila, importación
@@ -245,7 +246,16 @@ Todavía no conectado con el constructor de formación (`/board`): agendar un pa
 - Usa las nuevas tablas `match_results`, `match_goals` y `match_cards` (`0005_match_results.sql`); no depende de `match_lineups` ni de la asistencia — se puede cargar un resultado aunque el partido nunca haya tenido formación armada en la app.
 - Probado de punta a punta contra Supabase real: DT carga un 3-1 con notas, un gol (min. 23) y una tarjeta amarilla (min. 40); un jugador logueado ve exactamente esos datos en modo solo lectura, sin poder editar ni agregar nada.
 
-### 5.11 PWA
+### 5.11 Estadísticas de temporada (`/stats`) — Fase 5
+
+- Agrega, para todo el equipo, los datos ya cargados en las Fases 2–4: convocatorias (asistencia confirmada), goles, tarjetas y resultados de todos los partidos agendados.
+- **Resumen del equipo**: partidos jugados (con resultado cargado), récord ganados/empatados/perdidos, goles a favor y en contra.
+- **Tabla por jugador**: convocatorias, goles, amarillas y rojas, ordenada por goles (y convocatorias como desempate).
+- Sin distinción de rol: cualquiera con sesión de equipo ve la misma tabla, ya que es puramente informativa y no permite editar nada desde ahí (los datos se cargan desde `/matches/[id]/board` y `/matches/[id]/result`).
+- No requiere ninguna tabla ni migración nueva: reutiliza `match_attendance`, `match_results`, `match_goals` y `match_cards` con consultas nuevas por `team_id` (`fetchTeamAttendance`, `fetchTeamMatchResults`, `fetchTeamMatchGoals`, `fetchTeamMatchCards` en `supabase-match-service.ts`) — las políticas de RLS ya existentes cubren la lectura agregada por equipo sin cambios.
+- Probado de punta a punta contra Supabase real: se sembraron 2 partidos (ganado 2-0 y perdido 1-3) con asistencia, goles y tarjetas repartidos entre 4 jugadores, y la tabla resultante coincidió exactamente con lo esperado (récord 1-0-1, goles 3-3, ranking de goleadores correcto); luego se verificó también el estado vacío sin datos cargados.
+
+### 5.12 PWA
 - Instalable (`manifest.ts`, ícono = miniatura cuadrada del escudo de Las Condes FC (`public/icon.png`, 1254×1254), soporte iOS).
 - Service worker con estrategia cache-first para uso básico offline (activo solo en producción, para no interferir con el hot-reload en desarrollo).
 
@@ -407,7 +417,7 @@ Como el login automático del CLI de Supabase no funciona en este entorno de des
 
 Probado de punta a punta: login con código de jugador, listado de plantilla, reclamo de un número, y confirmación de que `players.claimed_by` quedó escrito en la base real.
 
-**Estado:** login, reclamo de jugador, gestión de la plantilla (`/players`), partidos agendados con asistencia anticipada (`/matches`, Fase 2), formación + instrucciones tácticas por partido (`/matches/[id]/board`, Fase 3) **y resultado post-partido con goleadores y tarjetas** (`/matches/[id]/result`, Fase 4) funcionando en producción real contra Supabase, con permisos por rol probados de punta a punta (edición propia para jugador, control total para DT/capitán, verificado también que las políticas de RLS bloquean del lado del servidor, no solo en la interfaz). El flujo local original (`/attendance` → `/formation` → `/board` → `/history`) sigue vivo aparte, sin migrar a Supabase, como atajo rápido del DT para armar una formación suelta sin agendar un partido.
+**Estado:** login, reclamo de jugador, gestión de la plantilla (`/players`), partidos agendados con asistencia anticipada (`/matches`, Fase 2), formación + instrucciones tácticas por partido (`/matches/[id]/board`, Fase 3), resultado post-partido con goleadores y tarjetas (`/matches/[id]/result`, Fase 4) **y estadísticas de temporada** (`/stats`, Fase 5) funcionando en producción real contra Supabase, con permisos por rol probados de punta a punta (edición propia para jugador, control total para DT/capitán, verificado también que las políticas de RLS bloquean del lado del servidor, no solo en la interfaz). El flujo local original (`/attendance` → `/formation` → `/board` → `/history`) sigue vivo aparte, sin migrar a Supabase, como atajo rápido del DT para armar una formación suelta sin agendar un partido.
 
 ### Repositorio y paquete Android
 
@@ -418,7 +428,7 @@ Probado de punta a punta: login con código de jugador, listado de plantilla, re
 
 ## 9. Estado del proyecto y pendientes
 
-**Completado:** login por código de equipo con roles (Fase 0), gestión de jugadores sobre Supabase con alias y permisos por rol, partidos agendados con asistencia anticipada (Fase 2), formación + instrucciones tácticas atadas a cada partido agendado con vista editable para el DT y de solo lectura para el jugador (Fase 3, sobre Supabase), registro post-partido con marcador, goleadores, tarjetas y notas del DT (Fase 4, sobre Supabase), constructor de formación local con drag & drop (con `DragOverlay` para que la tarjeta arrastrada no se recorte ni desaparezca, banca con desplazamiento lateral), compartir por imagen con Web Share API (incluye instrucciones tácticas), historial, animaciones, responsive, PWA instalable con ícono de marca, tema visual oscuro con paleta del escudo de Las Condes FC, despliegue en producción con HTTPS + auto-deploy desde GitHub, paquete `.apk` para instalación directa en Android.
+**Completado:** login por código de equipo con roles (Fase 0), gestión de jugadores sobre Supabase con alias y permisos por rol, partidos agendados con asistencia anticipada (Fase 2), formación + instrucciones tácticas atadas a cada partido agendado con vista editable para el DT y de solo lectura para el jugador (Fase 3, sobre Supabase), registro post-partido con marcador, goleadores, tarjetas y notas del DT (Fase 4, sobre Supabase), estadísticas de temporada agregadas por jugador y récord del equipo (Fase 5, sobre Supabase), constructor de formación local con drag & drop (con `DragOverlay` para que la tarjeta arrastrada no se recorte ni desaparezca, banca con desplazamiento lateral), compartir por imagen con Web Share API (incluye instrucciones tácticas), historial, animaciones, responsive, PWA instalable con ícono de marca, tema visual oscuro con paleta del escudo de Las Condes FC, despliegue en producción con HTTPS + auto-deploy desde GitHub, paquete `.apk` para instalación directa en Android.
 
 ### Roadmap: de "ver la formación" a plataforma del equipo
 
@@ -429,7 +439,7 @@ Visión a futuro: que la app reemplace a WhatsApp como canal central del equipo 
 - **Fase 2 — Partidos agendados** ✅ completado — DT/capitán agenda partidos, todo el equipo marca/ve asistencia anticipada, ver arriba.
 - **Fase 3 — Vista del jugador** ✅ completado — el DT arma la formación e instrucciones tácticas de un partido agendado a partir de los asistentes confirmados, y cada jugador la ve (junto a sus propias instrucciones) en modo solo lectura el día del partido, ver sección 5.9.
 - **Fase 4 — Registro post-partido** ✅ completado — el DT carga marcador, goleadores, tarjetas y notas de cada partido; todo el equipo lo ve en modo solo lectura, ver sección 5.10.
-- **Fase 5 — Estadísticas**: agregación de goles/tarjetas/convocatorias por jugador a lo largo de la temporada; depende de Fase 4.
+- **Fase 5 — Estadísticas** ✅ completado — récord del equipo (G-E-P, goles a favor/en contra) y tabla de convocatorias/goles/tarjetas por jugador a lo largo de la temporada, ver sección 5.11.
 - **Fase 6 — Zonas de influencia y redes de pase**: mapas de calor y líneas de asociación entre jugadores sobre la cancha; mejora visual, no bloquea nada de lo anterior.
 
 **Otras mejoras futuras sugeridas** (no implementadas, compatibles con la arquitectura actual):

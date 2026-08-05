@@ -6,7 +6,7 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/hooks/use-auth";
-import { Users, PlayCircle, History, KeyRound, LogOut, CalendarDays } from "lucide-react";
+import { Users, PlayCircle, History, KeyRound, LogOut, CalendarDays, BarChart3 } from "lucide-react";
 
 const container = {
   hidden: {},
@@ -83,6 +83,15 @@ export default function Home() {
             <Button className="w-full justify-start" size="lg" variant="outline">
               <History className="mr-2 h-5 w-5" />
               Historial
+            </Button>
+          </Link>
+        </motion.div>
+
+        <motion.div variants={item}>
+          <Link href="/stats">
+            <Button className="w-full justify-start" size="lg" variant="outline">
+              <BarChart3 className="mr-2 h-5 w-5" />
+              Estadísticas
             </Button>
           </Link>
         </motion.div>
