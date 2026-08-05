@@ -28,3 +28,28 @@ export interface MatchLineupData {
   bench: string[];
   updatedAt: string;
 }
+
+export interface MatchResult {
+  matchId: string;
+  teamScore: number;
+  opponentScore: number;
+  notes?: string;
+  updatedAt: string;
+}
+
+export type CardType = "yellow" | "red";
+
+export interface MatchGoal {
+  id: string;
+  matchId: string;
+  playerId: string;
+  minute?: number;
+}
+
+export interface MatchCard {
+  id: string;
+  matchId: string;
+  playerId: string;
+  cardType: CardType;
+  minute?: number;
+}
