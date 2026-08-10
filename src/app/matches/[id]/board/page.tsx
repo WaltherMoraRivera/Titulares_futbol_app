@@ -28,7 +28,7 @@ import { FORMATION_PRESETS, getFormationPreset } from "@/utils/formation-presets
 import { captureElementAsBlob, shareOrDownloadImage } from "@/utils/export-image";
 import { getDisplayName } from "@/utils/player-display";
 import { ArrowGraphic, MatchLineup, Player, Point, ZoneGraphic } from "@/types";
-import { ArrowLeft, PenLine, Radar, Shapes, Share2, X } from "lucide-react";
+import { ArrowLeft, PenLine, Radar, Shapes, Share2, Target, Undo2, X } from "lucide-react";
 
 type Tool = "move" | "arrow" | "zone";
 
@@ -43,12 +43,13 @@ export default function MatchBoardPage({
 }) {
   const { id } = use(params);
 
-  const { loaded: authLoaded, teamId, role, load: loadAuth } = useAuthStore();
+  const { loaded: authLoaded, teamId, role, playerId, load: loadAuth } = useAuthStore();
   const { players, loaded: playersLoaded, load: loadPlayers } = usePlayersStore();
   const { matches, loaded: matchesLoaded, load: loadMatches } = useMatchesStore();
   const {
     lineup,
     loaded: lineupLoaded,
+    graphicsHistory,
     loadForMatch,
     startFormation,
     moveToField,
@@ -57,6 +58,7 @@ export default function MatchBoardPage({
     addArrow,
     addZone,
     removeGraphic,
+    undoGraphics,
   } = useMatchLineupStore();
 
   const [confirmedIds, setConfirmedIds] = useState<string[]>([]);
@@ -67,6 +69,7 @@ export default function MatchBoardPage({
   const [showInfluence, setShowInfluence] = useState(false);
   const [tool, setTool] = useState<Tool>("move");
   const [arrowOriginId, setArrowOriginId] = useState<string | null>(null);
+  const [focusMode, setFocusMode] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
 
   const isDt = role === "dt";
@@ -138,6 +141,11 @@ export default function MatchBoardPage({
   );
   const selectedInstructions = selectedPlayer
     ? lineup?.assignments.find((a) => a.playerId === selectedPlayer.id)?.instructions
+    : undefined;
+
+  const focusPlayerId = focusMode && playerId ? playerId : undefined;
+  const myInstructions = playerId
+    ? lineup?.assignments.find((a) => a.playerId === playerId)?.instructions
     : undefined;
 
   const exportLineup: MatchLineup | null = useMemo(() => {
@@ -318,6 +326,13 @@ export default function MatchBoardPage({
           </Button>
         </Link>
         <h1 className="flex-1 text-xl font-semibold">{formation?.label ?? "Formación"}</h1>
+        <Button size="sm" onClick={handleShare} disabled={sharing}>
+          <Share2 className="mr-1 h-4 w-4" />
+          Compartir
+        </Button>
+      </header>
+
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <Button
           size="icon"
           variant={showInfluence ? "default" : "outline"}
@@ -326,6 +341,16 @@ export default function MatchBoardPage({
         >
           <Radar className="h-4 w-4" />
         </Button>
+        {playerId && (
+          <Button
+            size="icon"
+            variant={focusMode ? "default" : "outline"}
+            aria-label="Mi plan de juego"
+            onClick={() => setFocusMode((v) => !v)}
+          >
+            <Target className="h-4 w-4" />
+          </Button>
+        )}
         {isDt && (
           <>
             <Button
@@ -344,13 +369,18 @@ export default function MatchBoardPage({
             >
               <Shapes className="h-4 w-4" />
             </Button>
+            <Button
+              size="icon"
+              variant="outline"
+              aria-label="Deshacer última flecha o zona"
+              disabled={graphicsHistory.length === 0}
+              onClick={() => undoGraphics()}
+            >
+              <Undo2 className="h-4 w-4" />
+            </Button>
           </>
         )}
-        <Button size="sm" onClick={handleShare} disabled={sharing}>
-          <Share2 className="mr-1 h-4 w-4" />
-          Compartir
-        </Button>
-      </header>
+      </div>
 
       {tool === "arrow" && (
         <p className="mb-3 rounded-lg border border-dashed bg-muted/40 p-2 text-center text-xs text-muted-foreground">
@@ -380,8 +410,9 @@ export default function MatchBoardPage({
             graphics={lineup.graphics}
             zoneToolActive={isDt && tool === "zone"}
             onZoneComplete={isDt ? handleZoneComplete : undefined}
+            focusPlayerId={focusPlayerId}
           />
-          <BenchStrip bench={benchPlayers} onTapPlayer={setSelectedPlayer} />
+          <BenchStrip bench={benchPlayers} onTapPlayer={setSelectedPlayer} focusPlayerId={focusPlayerId} />
 
           <DragOverlay dropAnimation={null}>
             {activePlayer && (
@@ -391,6 +422,13 @@ export default function MatchBoardPage({
             )}
           </DragOverlay>
         </DndContext>
+      )}
+
+      {focusMode && myInstructions?.trim() && (
+        <div className="mt-3 rounded-lg border bg-card p-3">
+          <p className="mb-1 text-xs font-medium text-muted-foreground">Tus instrucciones</p>
+          <p className="text-sm">{myInstructions}</p>
+        </div>
       )}
 
       {isDt && tool !== "move" && lineup && (

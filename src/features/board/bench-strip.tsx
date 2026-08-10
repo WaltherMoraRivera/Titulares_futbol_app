@@ -10,9 +10,10 @@ import { PlayerCard } from "./player-card";
 interface BenchStripProps {
   bench: Player[];
   onTapPlayer: (player: Player) => void;
+  focusPlayerId?: string;
 }
 
-export function BenchStrip({ bench, onTapPlayer }: BenchStripProps) {
+export function BenchStrip({ bench, onTapPlayer, focusPlayerId }: BenchStripProps) {
   const { setNodeRef } = useDroppable({ id: "bench" });
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -56,17 +57,22 @@ export function BenchStrip({ bench, onTapPlayer }: BenchStripProps) {
             </p>
           )}
           <AnimatePresence initial={false}>
-            {bench.map((player) => (
-              <motion.div
-                key={player.id}
-                initial={{ opacity: 0, scale: 0.75 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.75 }}
-                transition={{ duration: 0.2 }}
-              >
-                <PlayerCard player={player} onTap={onTapPlayer} variant="bench" />
-              </motion.div>
-            ))}
+            {bench.map((player) => {
+              const isFocused = focusPlayerId === player.id;
+              const isDimmed = !!focusPlayerId && !isFocused;
+              return (
+                <motion.div
+                  key={player.id}
+                  initial={{ opacity: 0, scale: 0.75 }}
+                  animate={{ opacity: isDimmed ? 0.25 : 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.75 }}
+                  transition={{ duration: 0.2 }}
+                  style={isFocused ? { filter: "drop-shadow(0 0 6px var(--accent))" } : undefined}
+                >
+                  <PlayerCard player={player} onTap={onTapPlayer} variant="bench" />
+                </motion.div>
+              );
+            })}
           </AnimatePresence>
         </div>
 

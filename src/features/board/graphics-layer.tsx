@@ -7,6 +7,17 @@ import { catmullRomToClosedBezierPath } from "@/utils/curve-smoothing";
 interface GraphicsLayerProps {
   graphics: GraphicElement[];
   assignments: LineupAssignment[];
+  /** Si se pasa, las flechas que no involucran a este jugador se atenúan
+   * (modo "Mi plan de juego" — Fase 7.4). Las zonas no se atenúan: son
+   * marcas de equipo, no individuales. */
+  focusPlayerId?: string;
+}
+
+interface PositionedArrow {
+  id: string;
+  path: string;
+  fromPlayerId: string;
+  toPlayerId: string;
 }
 
 function computeArrowPath(from: Point, to: Point) {
@@ -35,7 +46,7 @@ function computeArrowPath(from: Point, to: Point) {
  * coordenadas en % que usan las tarjetas de jugador. Las flechas referencian
  * playerId, no coordenadas fijas, así que se recalculan solas cuando alguno
  * de los dos jugadores se mueve; las zonas son formas independientes. */
-export function GraphicsLayer({ graphics, assignments }: GraphicsLayerProps) {
+export function GraphicsLayer({ graphics, assignments, focusPlayerId }: GraphicsLayerProps) {
   const arrows = useMemo(() => {
     const byPlayer = new Map(assignments.map((a) => [a.playerId, a]));
     return graphics
@@ -44,9 +55,14 @@ export function GraphicsLayer({ graphics, assignments }: GraphicsLayerProps) {
         const from = byPlayer.get(g.fromPlayerId);
         const to = byPlayer.get(g.toPlayerId);
         if (!from || !to) return null;
-        return { id: g.id, path: computeArrowPath(from, to) };
+        return {
+          id: g.id,
+          path: computeArrowPath(from, to),
+          fromPlayerId: g.fromPlayerId,
+          toPlayerId: g.toPlayerId,
+        };
       })
-      .filter((a): a is { id: string; path: string } => a !== null);
+      .filter((a): a is PositionedArrow => a !== null);
   }, [graphics, assignments]);
 
   const zones = useMemo(
@@ -93,17 +109,25 @@ export function GraphicsLayer({ graphics, assignments }: GraphicsLayerProps) {
         />
       ))}
 
-      {arrows.map((arrow) => (
-        <path
-          key={arrow.id}
-          d={arrow.path}
-          fill="none"
-          stroke="var(--accent)"
-          strokeWidth={1.1}
-          strokeLinecap="round"
-          markerEnd="url(#arrow-head)"
-        />
-      ))}
+      {arrows.map((arrow) => {
+        const involved =
+          !focusPlayerId ||
+          arrow.fromPlayerId === focusPlayerId ||
+          arrow.toPlayerId === focusPlayerId;
+        return (
+          <path
+            key={arrow.id}
+            d={arrow.path}
+            fill="none"
+            stroke="var(--accent)"
+            strokeOpacity={involved ? 1 : 0.15}
+            strokeWidth={1.1}
+            strokeLinecap="round"
+            markerEnd="url(#arrow-head)"
+            style={involved && focusPlayerId ? { filter: "drop-shadow(0 0 2px var(--accent))" } : undefined}
+          />
+        );
+      })}
     </svg>
   );
 }
