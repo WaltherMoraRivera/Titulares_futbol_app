@@ -69,7 +69,7 @@ formacion-ya/
 │  ├─ features/                  # componentes con lógica específica de dominio
 │  │  ├─ players/                # formulario, fila, importación
 │  │  ├─ attendance/              # fila de asistencia
-│  │  ├─ board/                   # cancha, banca, tarjeta de jugador, export, compartir
+│  │  ├─ board/                   # cancha, banca, tarjeta de jugador, export, compartir, zonas de influencia
 │  │  ├─ history/                 # tarjeta de historial
 │  │  └─ pwa/                     # registro del service worker
 │  ├─ hooks/                      # stores Zustand (use-players, use-attendance, use-board, use-history, use-auth)
@@ -255,7 +255,17 @@ Todavía no conectado con el constructor de formación (`/board`): agendar un pa
 - No requiere ninguna tabla ni migración nueva: reutiliza `match_attendance`, `match_results`, `match_goals` y `match_cards` con consultas nuevas por `team_id` (`fetchTeamAttendance`, `fetchTeamMatchResults`, `fetchTeamMatchGoals`, `fetchTeamMatchCards` en `supabase-match-service.ts`) — las políticas de RLS ya existentes cubren la lectura agregada por equipo sin cambios.
 - Probado de punta a punta contra Supabase real: se sembraron 2 partidos (ganado 2-0 y perdido 1-3) con asistencia, goles y tarjetas repartidos entre 4 jugadores, y la tabla resultante coincidió exactamente con lo esperado (récord 1-0-1, goles 3-3, ranking de goleadores correcto); luego se verificó también el estado vacío sin datos cargados.
 
-### 5.12 PWA
+### 5.12 Zonas de influencia (`/board` y `/matches/[id]/board`) — Fase 6
+
+- Botón toggle (ícono de radar) en el header de ambas pantallas de cancha, visible solo cuando ya hay una formación armada. Al activarlo, se dibuja un overlay SVG detrás de las tarjetas de jugador.
+- **Importante — es una visualización táctica, no datos reales de movimiento ni de pases**: la app nunca capturó tracking de jugadores ni eventos de pase en vivo, así que no hay esa fuente de datos. El overlay se calcula 100% a partir de las posiciones (x, y) ya asignadas en la formación actual:
+  - Un degradé radial (color del jugador, mismo criterio que el resto de la app) alrededor de la posición de cada jugador, a modo de "zona".
+  - Líneas finas que conectan a cada jugador con sus dos compañeros más cercanos en el esquema (cercanía geométrica entre posiciones asignadas, no pases registrados).
+- Implementado en `src/features/board/influence-overlay.tsx`, un componente puro (`InfluenceOverlay({assignments, playersById})`) sin estado ni llamadas a Supabase — recibe exactamente los mismos `assignments` que ya usa `Field` para pintar las tarjetas. `Field` lo renderiza condicionalmente vía el prop `showInfluence` (default `false`, así que no afecta a nadie que no lo active).
+- No requirió tablas, migraciones ni cambios de tipos: es puramente un componente visual sobre datos que ya existían en memoria en ambas pantallas.
+- Probado contra Supabase real (`/matches/[id]/board`) y contra Local Storage (`/board`): en ambos casos el overlay renderiza un círculo con degradé por cada jugador en cancha (verificado que las coordenadas `cx`/`cy` coinciden con las de la formación) y las líneas de cercanía, y desaparece por completo al desactivar el toggle.
+
+### 5.13 PWA
 - Instalable (`manifest.ts`, ícono = miniatura cuadrada del escudo de Las Condes FC (`public/icon.png`, 1254×1254), soporte iOS).
 - Service worker con estrategia cache-first para uso básico offline (activo solo en producción, para no interferir con el hot-reload en desarrollo).
 
@@ -417,7 +427,7 @@ Como el login automático del CLI de Supabase no funciona en este entorno de des
 
 Probado de punta a punta: login con código de jugador, listado de plantilla, reclamo de un número, y confirmación de que `players.claimed_by` quedó escrito en la base real.
 
-**Estado:** login, reclamo de jugador, gestión de la plantilla (`/players`), partidos agendados con asistencia anticipada (`/matches`, Fase 2), formación + instrucciones tácticas por partido (`/matches/[id]/board`, Fase 3), resultado post-partido con goleadores y tarjetas (`/matches/[id]/result`, Fase 4) **y estadísticas de temporada** (`/stats`, Fase 5) funcionando en producción real contra Supabase, con permisos por rol probados de punta a punta (edición propia para jugador, control total para DT/capitán, verificado también que las políticas de RLS bloquean del lado del servidor, no solo en la interfaz). El flujo local original (`/attendance` → `/formation` → `/board` → `/history`) sigue vivo aparte, sin migrar a Supabase, como atajo rápido del DT para armar una formación suelta sin agendar un partido.
+**Estado:** login, reclamo de jugador, gestión de la plantilla (`/players`), partidos agendados con asistencia anticipada (`/matches`, Fase 2), formación + instrucciones tácticas por partido (`/matches/[id]/board`, Fase 3), resultado post-partido con goleadores y tarjetas (`/matches/[id]/result`, Fase 4), estadísticas de temporada (`/stats`, Fase 5) **y zonas de influencia visuales sobre la cancha** (Fase 6) funcionando en producción real contra Supabase, con permisos por rol probados de punta a punta (edición propia para jugador, control total para DT/capitán, verificado también que las políticas de RLS bloquean del lado del servidor, no solo en la interfaz). El flujo local original (`/attendance` → `/formation` → `/board` → `/history`) sigue vivo aparte, sin migrar a Supabase, como atajo rápido del DT para armar una formación suelta sin agendar un partido.
 
 ### Repositorio y paquete Android
 
@@ -428,7 +438,7 @@ Probado de punta a punta: login con código de jugador, listado de plantilla, re
 
 ## 9. Estado del proyecto y pendientes
 
-**Completado:** login por código de equipo con roles (Fase 0), gestión de jugadores sobre Supabase con alias y permisos por rol, partidos agendados con asistencia anticipada (Fase 2), formación + instrucciones tácticas atadas a cada partido agendado con vista editable para el DT y de solo lectura para el jugador (Fase 3, sobre Supabase), registro post-partido con marcador, goleadores, tarjetas y notas del DT (Fase 4, sobre Supabase), estadísticas de temporada agregadas por jugador y récord del equipo (Fase 5, sobre Supabase), constructor de formación local con drag & drop (con `DragOverlay` para que la tarjeta arrastrada no se recorte ni desaparezca, banca con desplazamiento lateral), compartir por imagen con Web Share API (incluye instrucciones tácticas), historial, animaciones, responsive, PWA instalable con ícono de marca, tema visual oscuro con paleta del escudo de Las Condes FC, despliegue en producción con HTTPS + auto-deploy desde GitHub, paquete `.apk` para instalación directa en Android.
+**Completado:** login por código de equipo con roles (Fase 0), gestión de jugadores sobre Supabase con alias y permisos por rol, partidos agendados con asistencia anticipada (Fase 2), formación + instrucciones tácticas atadas a cada partido agendado con vista editable para el DT y de solo lectura para el jugador (Fase 3, sobre Supabase), registro post-partido con marcador, goleadores, tarjetas y notas del DT (Fase 4, sobre Supabase), estadísticas de temporada agregadas por jugador y récord del equipo (Fase 5, sobre Supabase), zonas de influencia visuales sobre la cancha en ambas pantallas de formación (Fase 6), constructor de formación local con drag & drop (con `DragOverlay` para que la tarjeta arrastrada no se recorte ni desaparezca, banca con desplazamiento lateral), compartir por imagen con Web Share API (incluye instrucciones tácticas), historial, animaciones, responsive, PWA instalable con ícono de marca, tema visual oscuro con paleta del escudo de Las Condes FC, despliegue en producción con HTTPS + auto-deploy desde GitHub, paquete `.apk` para instalación directa en Android.
 
 ### Roadmap: de "ver la formación" a plataforma del equipo
 
@@ -440,7 +450,7 @@ Visión a futuro: que la app reemplace a WhatsApp como canal central del equipo 
 - **Fase 3 — Vista del jugador** ✅ completado — el DT arma la formación e instrucciones tácticas de un partido agendado a partir de los asistentes confirmados, y cada jugador la ve (junto a sus propias instrucciones) en modo solo lectura el día del partido, ver sección 5.9.
 - **Fase 4 — Registro post-partido** ✅ completado — el DT carga marcador, goleadores, tarjetas y notas de cada partido; todo el equipo lo ve en modo solo lectura, ver sección 5.10.
 - **Fase 5 — Estadísticas** ✅ completado — récord del equipo (G-E-P, goles a favor/en contra) y tabla de convocatorias/goles/tarjetas por jugador a lo largo de la temporada, ver sección 5.11.
-- **Fase 6 — Zonas de influencia y redes de pase**: mapas de calor y líneas de asociación entre jugadores sobre la cancha; mejora visual, no bloquea nada de lo anterior.
+- **Fase 6 — Zonas de influencia** ✅ completado — overlay visual (degradé por jugador + líneas de cercanía) sobre la formación ya cargada, en `/board` y `/matches/[id]/board`; no hay datos reales de movimiento ni de pases, ver sección 5.12 para el detalle de esa decisión de alcance.
 
 **Otras mejoras futuras sugeridas** (no implementadas, compatibles con la arquitectura actual):
 - Sustituciones en tiempo real durante el partido.

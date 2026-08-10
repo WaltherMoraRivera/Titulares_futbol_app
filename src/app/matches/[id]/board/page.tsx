@@ -26,7 +26,7 @@ import { ExportView } from "@/features/board/export-view";
 import { FORMATION_PRESETS, getFormationPreset } from "@/utils/formation-presets";
 import { captureElementAsBlob, shareOrDownloadImage } from "@/utils/export-image";
 import { MatchLineup, Player } from "@/types";
-import { ArrowLeft, Share2 } from "lucide-react";
+import { ArrowLeft, Radar, Share2 } from "lucide-react";
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -57,6 +57,7 @@ export default function MatchBoardPage({
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [activePlayer, setActivePlayer] = useState<Player | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [showInfluence, setShowInfluence] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
 
   const isDt = role === "dt";
@@ -257,6 +258,14 @@ export default function MatchBoardPage({
           </Button>
         </Link>
         <h1 className="flex-1 text-xl font-semibold">{formation?.label ?? "Formación"}</h1>
+        <Button
+          size="icon"
+          variant={showInfluence ? "default" : "outline"}
+          aria-label="Mostrar zonas de influencia"
+          onClick={() => setShowInfluence((v) => !v)}
+        >
+          <Radar className="h-4 w-4" />
+        </Button>
         <Button size="sm" onClick={handleShare} disabled={sharing}>
           <Share2 className="mr-1 h-4 w-4" />
           Compartir
@@ -274,6 +283,7 @@ export default function MatchBoardPage({
             assignments={lineup.assignments}
             playersById={playersById}
             onTapPlayer={setSelectedPlayer}
+            showInfluence={showInfluence}
           />
           <BenchStrip bench={benchPlayers} onTapPlayer={setSelectedPlayer} />
 

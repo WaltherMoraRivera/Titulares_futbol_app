@@ -6,15 +6,17 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Player, LineupAssignment } from "@/types";
 import { PitchBackground } from "./pitch-background";
 import { PlayerCard } from "./player-card";
+import { InfluenceOverlay } from "./influence-overlay";
 
 interface FieldProps {
   assignments: LineupAssignment[];
   playersById: Map<string, Player>;
   onTapPlayer: (player: Player) => void;
+  showInfluence?: boolean;
 }
 
 export const Field = forwardRef<HTMLDivElement, FieldProps>(function Field(
-  { assignments, playersById, onTapPlayer },
+  { assignments, playersById, onTapPlayer, showInfluence = false },
   ref
 ) {
   const { setNodeRef } = useDroppable({ id: "field" });
@@ -30,6 +32,7 @@ export const Field = forwardRef<HTMLDivElement, FieldProps>(function Field(
       className="relative aspect-[2/3] w-full overflow-hidden rounded-xl shadow-inner"
     >
       <PitchBackground />
+      {showInfluence && <InfluenceOverlay assignments={assignments} playersById={playersById} />}
       <AnimatePresence>
         {assignments.map((a) => {
           const player = playersById.get(a.playerId);
