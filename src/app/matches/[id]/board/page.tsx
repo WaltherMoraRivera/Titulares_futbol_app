@@ -27,8 +27,10 @@ import { ExportView } from "@/features/board/export-view";
 import { FORMATION_PRESETS, getFormationPreset } from "@/utils/formation-presets";
 import { captureElementAsBlob, shareOrDownloadImage } from "@/utils/export-image";
 import { getDisplayName } from "@/utils/player-display";
-import { ArrowGraphic, MatchLineup, Player } from "@/types";
-import { ArrowLeft, PenLine, Radar, Share2, X } from "lucide-react";
+import { ArrowGraphic, MatchLineup, Player, Point, ZoneGraphic } from "@/types";
+import { ArrowLeft, PenLine, Radar, Shapes, Share2, X } from "lucide-react";
+
+type Tool = "move" | "arrow" | "zone";
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -53,6 +55,7 @@ export default function MatchBoardPage({
     moveToBench,
     setInstructions,
     addArrow,
+    addZone,
     removeGraphic,
   } = useMatchLineupStore();
 
@@ -62,7 +65,7 @@ export default function MatchBoardPage({
   const [activePlayer, setActivePlayer] = useState<Player | null>(null);
   const [sharing, setSharing] = useState(false);
   const [showInfluence, setShowInfluence] = useState(false);
-  const [drawMode, setDrawMode] = useState(false);
+  const [tool, setTool] = useState<Tool>("move");
   const [arrowOriginId, setArrowOriginId] = useState<string | null>(null);
   const exportRef = useRef<HTMLDivElement>(null);
 
@@ -95,8 +98,8 @@ export default function MatchBoardPage({
   // error de React sobre arrays de dependencias de tamaño variable).
   const dragDisabledRef = useRef(false);
   useEffect(() => {
-    dragDisabledRef.current = !isDt || drawMode;
-  }, [isDt, drawMode]);
+    dragDisabledRef.current = !isDt || tool !== "move";
+  }, [isDt, tool]);
 
   const ConditionalPointerSensor = useMemo(() => {
     return class extends PointerSensor {
@@ -154,7 +157,7 @@ export default function MatchBoardPage({
   }, [lineup, match]);
 
   function handleFieldTap(player: Player) {
-    if (isDt && drawMode) {
+    if (isDt && tool === "arrow") {
       if (!arrowOriginId) {
         setArrowOriginId(player.id);
         toast.info(`Origen: ${getDisplayName(player)}. Toca el jugador destino.`);
@@ -170,6 +173,15 @@ export default function MatchBoardPage({
       return;
     }
     setSelectedPlayer(player);
+  }
+
+  function handleZoneComplete(points: Point[]) {
+    addZone(points);
+  }
+
+  function selectTool(next: Tool) {
+    setTool((current) => (current === next ? "move" : next));
+    setArrowOriginId(null);
   }
 
   function handleDragStart(event: DragStartEvent) {
@@ -315,17 +327,24 @@ export default function MatchBoardPage({
           <Radar className="h-4 w-4" />
         </Button>
         {isDt && (
-          <Button
-            size="icon"
-            variant={drawMode ? "default" : "outline"}
-            aria-label="Modo dibujar flechas"
-            onClick={() => {
-              setDrawMode((v) => !v);
-              setArrowOriginId(null);
-            }}
-          >
-            <PenLine className="h-4 w-4" />
-          </Button>
+          <>
+            <Button
+              size="icon"
+              variant={tool === "arrow" ? "default" : "outline"}
+              aria-label="Modo dibujar flechas"
+              onClick={() => selectTool("arrow")}
+            >
+              <PenLine className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant={tool === "zone" ? "default" : "outline"}
+              aria-label="Modo dibujar zonas"
+              onClick={() => selectTool("zone")}
+            >
+              <Shapes className="h-4 w-4" />
+            </Button>
+          </>
         )}
         <Button size="sm" onClick={handleShare} disabled={sharing}>
           <Share2 className="mr-1 h-4 w-4" />
@@ -333,11 +352,16 @@ export default function MatchBoardPage({
         </Button>
       </header>
 
-      {drawMode && (
+      {tool === "arrow" && (
         <p className="mb-3 rounded-lg border border-dashed bg-muted/40 p-2 text-center text-xs text-muted-foreground">
           {arrowOriginId
             ? "Toca al jugador destino de la flecha (o vuelve a tocar el origen para cancelar)."
             : "Toca al jugador de origen de la flecha."}
+        </p>
+      )}
+      {tool === "zone" && (
+        <p className="mb-3 rounded-lg border border-dashed bg-muted/40 p-2 text-center text-xs text-muted-foreground">
+          Dibuja el contorno de la zona con el dedo y suelta para terminar.
         </p>
       )}
 
@@ -354,6 +378,8 @@ export default function MatchBoardPage({
             onTapPlayer={handleFieldTap}
             showInfluence={showInfluence}
             graphics={lineup.graphics}
+            zoneToolActive={isDt && tool === "zone"}
+            onZoneComplete={isDt ? handleZoneComplete : undefined}
           />
           <BenchStrip bench={benchPlayers} onTapPlayer={setSelectedPlayer} />
 
@@ -367,36 +393,64 @@ export default function MatchBoardPage({
         </DndContext>
       )}
 
-      {isDt && drawMode && lineup && (
-        <div className="mt-3">
-          <p className="mb-1.5 text-xs font-medium text-muted-foreground">
-            Flechas ({lineup.graphics.filter((g) => g.type === "arrow").length})
-          </p>
-          <div className="space-y-1.5">
-            {lineup.graphics
-              .filter((g): g is ArrowGraphic => g.type === "arrow")
-              .map((arrow) => {
-                const from = playersById.get(arrow.fromPlayerId);
-                const to = playersById.get(arrow.toPlayerId);
-                return (
+      {isDt && tool !== "move" && lineup && (
+        <div className="mt-3 space-y-3">
+          <div>
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+              Flechas ({lineup.graphics.filter((g) => g.type === "arrow").length})
+            </p>
+            <div className="space-y-1.5">
+              {lineup.graphics
+                .filter((g): g is ArrowGraphic => g.type === "arrow")
+                .map((arrow) => {
+                  const from = playersById.get(arrow.fromPlayerId);
+                  const to = playersById.get(arrow.toPlayerId);
+                  return (
+                    <div
+                      key={arrow.id}
+                      className="flex items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 text-sm"
+                    >
+                      <span className="min-w-0 flex-1 truncate">
+                        {from ? getDisplayName(from) : "?"} → {to ? getDisplayName(to) : "?"}
+                      </span>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        aria-label="Quitar flecha"
+                        onClick={() => removeGraphic(arrow.id)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+              Zonas ({lineup.graphics.filter((g) => g.type === "zone").length})
+            </p>
+            <div className="space-y-1.5">
+              {lineup.graphics
+                .filter((g): g is ZoneGraphic => g.type === "zone")
+                .map((zone, index) => (
                   <div
-                    key={arrow.id}
+                    key={zone.id}
                     className="flex items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 text-sm"
                   >
-                    <span className="min-w-0 flex-1 truncate">
-                      {from ? getDisplayName(from) : "?"} → {to ? getDisplayName(to) : "?"}
-                    </span>
+                    <span className="min-w-0 flex-1 truncate">Zona {index + 1}</span>
                     <Button
                       size="icon"
                       variant="ghost"
-                      aria-label="Quitar flecha"
-                      onClick={() => removeGraphic(arrow.id)}
+                      aria-label="Quitar zona"
+                      onClick={() => removeGraphic(zone.id)}
                     >
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
-                );
-              })}
+                ))}
+            </div>
           </div>
         </div>
       )}

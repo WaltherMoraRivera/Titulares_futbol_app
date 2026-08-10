@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { GraphicElement, MatchLineupData, Player } from "@/types";
+import { GraphicElement, MatchLineupData, Player, Point } from "@/types";
 import { assignPlayersToFormation } from "@/utils/assign-formation";
 import { getFormationPreset } from "@/utils/formation-presets";
 import { fetchMatchLineup, saveMatchLineup } from "@/services/supabase-match-service";
@@ -15,6 +15,7 @@ interface MatchLineupState {
   moveToBench: (playerId: string) => Promise<void>;
   setInstructions: (playerId: string, instructions: string) => Promise<void>;
   addArrow: (fromPlayerId: string, toPlayerId: string) => Promise<void>;
+  addZone: (points: Point[]) => Promise<void>;
   removeGraphic: (graphicId: string) => Promise<void>;
 }
 
@@ -128,6 +129,23 @@ export const useMatchLineupStore = create<MatchLineupState>((set, get) => ({
       toPlayerId,
     };
     const graphics = [...lineup.graphics, arrow];
+
+    const updated = await saveMatchLineup(teamId, matchId, {
+      formationTemplateId: lineup.formationTemplateId,
+      assignments: lineup.assignments,
+      bench: lineup.bench,
+      graphics,
+    });
+    set({ lineup: updated });
+  },
+
+  addZone: async (points) => {
+    const { lineup, matchId } = get();
+    if (!lineup || !matchId) return;
+    const teamId = await requireTeamId();
+
+    const zone: GraphicElement = { id: crypto.randomUUID(), type: "zone", points };
+    const graphics = [...lineup.graphics, zone];
 
     const updated = await saveMatchLineup(teamId, matchId, {
       formationTemplateId: lineup.formationTemplateId,

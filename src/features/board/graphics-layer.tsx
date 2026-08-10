@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { GraphicElement, LineupAssignment, Point } from "@/types";
+import { catmullRomToClosedBezierPath } from "@/utils/curve-smoothing";
 
 interface GraphicsLayerProps {
   graphics: GraphicElement[];
@@ -30,12 +31,12 @@ function computeArrowPath(from: Point, to: Point) {
   return `M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`;
 }
 
-/** Superpone flechas y (más adelante) zonas libres sobre la cancha, en el
- * mismo sistema de coordenadas en % que usan las tarjetas de jugador. Las
- * flechas referencian playerId, no coordenadas fijas, así que se recalculan
- * solas cuando alguno de los dos jugadores se mueve. */
+/** Superpone flechas y zonas libres sobre la cancha, en el mismo sistema de
+ * coordenadas en % que usan las tarjetas de jugador. Las flechas referencian
+ * playerId, no coordenadas fijas, así que se recalculan solas cuando alguno
+ * de los dos jugadores se mueve; las zonas son formas independientes. */
 export function GraphicsLayer({ graphics, assignments }: GraphicsLayerProps) {
-  const positioned = useMemo(() => {
+  const arrows = useMemo(() => {
     const byPlayer = new Map(assignments.map((a) => [a.playerId, a]));
     return graphics
       .map((g) => {
@@ -48,7 +49,15 @@ export function GraphicsLayer({ graphics, assignments }: GraphicsLayerProps) {
       .filter((a): a is { id: string; path: string } => a !== null);
   }, [graphics, assignments]);
 
-  if (positioned.length === 0) return null;
+  const zones = useMemo(
+    () =>
+      graphics
+        .filter((g) => g.type === "zone")
+        .map((g) => ({ id: g.id, path: catmullRomToClosedBezierPath(g.points) })),
+    [graphics]
+  );
+
+  if (arrows.length === 0 && zones.length === 0) return null;
 
   return (
     <svg
@@ -71,7 +80,20 @@ export function GraphicsLayer({ graphics, assignments }: GraphicsLayerProps) {
         </marker>
       </defs>
 
-      {positioned.map((arrow) => (
+      {zones.map((zone) => (
+        <path
+          key={zone.id}
+          d={zone.path}
+          fill="var(--primary)"
+          fillOpacity={0.18}
+          stroke="var(--primary)"
+          strokeOpacity={0.7}
+          strokeWidth={0.6}
+          strokeLinejoin="round"
+        />
+      ))}
+
+      {arrows.map((arrow) => (
         <path
           key={arrow.id}
           d={arrow.path}

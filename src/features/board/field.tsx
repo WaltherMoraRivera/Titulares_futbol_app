@@ -3,11 +3,12 @@
 import { forwardRef } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { AnimatePresence, motion } from "framer-motion";
-import { GraphicElement, Player, LineupAssignment } from "@/types";
+import { GraphicElement, Player, LineupAssignment, Point } from "@/types";
 import { PitchBackground } from "./pitch-background";
 import { PlayerCard } from "./player-card";
 import { InfluenceOverlay } from "./influence-overlay";
 import { GraphicsLayer } from "./graphics-layer";
+import { ZoneDrawingLayer } from "./zone-drawing-layer";
 
 interface FieldProps {
   assignments: LineupAssignment[];
@@ -15,10 +16,20 @@ interface FieldProps {
   onTapPlayer: (player: Player) => void;
   showInfluence?: boolean;
   graphics?: GraphicElement[];
+  zoneToolActive?: boolean;
+  onZoneComplete?: (points: Point[]) => void;
 }
 
 export const Field = forwardRef<HTMLDivElement, FieldProps>(function Field(
-  { assignments, playersById, onTapPlayer, showInfluence = false, graphics = [] },
+  {
+    assignments,
+    playersById,
+    onTapPlayer,
+    showInfluence = false,
+    graphics = [],
+    zoneToolActive = false,
+    onZoneComplete,
+  },
   ref
 ) {
   const { setNodeRef } = useDroppable({ id: "field" });
@@ -36,6 +47,9 @@ export const Field = forwardRef<HTMLDivElement, FieldProps>(function Field(
       <PitchBackground />
       {showInfluence && <InfluenceOverlay assignments={assignments} playersById={playersById} />}
       <GraphicsLayer graphics={graphics} assignments={assignments} />
+      {onZoneComplete && (
+        <ZoneDrawingLayer active={zoneToolActive} onComplete={onZoneComplete} />
+      )}
       <AnimatePresence>
         {assignments.map((a) => {
           const player = playersById.get(a.playerId);
