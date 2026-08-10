@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabase/client";
 import {
   AttendanceStatus,
   CardType,
+  GraphicElement,
   LineupAssignment,
   Match,
   MatchAttendance,
@@ -119,6 +120,7 @@ interface MatchLineupRow {
   formation_template_id: string;
   assignments: LineupAssignment[];
   bench: string[];
+  graphics: GraphicElement[];
   updated_at: string;
 }
 
@@ -128,6 +130,7 @@ function rowToMatchLineup(row: MatchLineupRow): MatchLineupData {
     formationTemplateId: row.formation_template_id,
     assignments: row.assignments,
     bench: row.bench,
+    graphics: row.graphics ?? [],
     updatedAt: row.updated_at,
   };
 }
@@ -142,12 +145,17 @@ export async function fetchMatchLineup(matchId: string): Promise<MatchLineupData
   return data ? rowToMatchLineup(data as MatchLineupRow) : null;
 }
 
+interface SaveMatchLineupInput {
+  formationTemplateId: string;
+  assignments: LineupAssignment[];
+  bench: string[];
+  graphics: GraphicElement[];
+}
+
 export async function saveMatchLineup(
   teamId: string,
   matchId: string,
-  formationTemplateId: string,
-  assignments: LineupAssignment[],
-  bench: string[]
+  input: SaveMatchLineupInput
 ): Promise<MatchLineupData> {
   const { data, error } = await supabase
     .from("match_lineups")
@@ -155,9 +163,10 @@ export async function saveMatchLineup(
       {
         match_id: matchId,
         team_id: teamId,
-        formation_template_id: formationTemplateId,
-        assignments,
-        bench,
+        formation_template_id: input.formationTemplateId,
+        assignments: input.assignments,
+        bench: input.bench,
+        graphics: input.graphics,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "match_id" }

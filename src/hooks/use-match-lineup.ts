@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { MatchLineupData, Player } from "@/types";
+import { GraphicElement, MatchLineupData, Player } from "@/types";
 import { assignPlayersToFormation } from "@/utils/assign-formation";
 import { getFormationPreset } from "@/utils/formation-presets";
 import { fetchMatchLineup, saveMatchLineup } from "@/services/supabase-match-service";
@@ -14,6 +14,8 @@ interface MatchLineupState {
   moveToField: (playerId: string, x: number, y: number) => Promise<void>;
   moveToBench: (playerId: string) => Promise<void>;
   setInstructions: (playerId: string, instructions: string) => Promise<void>;
+  addArrow: (fromPlayerId: string, toPlayerId: string) => Promise<void>;
+  removeGraphic: (graphicId: string) => Promise<void>;
 }
 
 async function requireTeamId(): Promise<string> {
@@ -45,7 +47,12 @@ export const useMatchLineupStore = create<MatchLineupState>((set, get) => ({
     if (!template) return;
 
     const { assignments, bench } = assignPlayersToFormation(attendees, template);
-    const lineup = await saveMatchLineup(teamId, matchId, formationTemplateId, assignments, bench);
+    const lineup = await saveMatchLineup(teamId, matchId, {
+      formationTemplateId,
+      assignments,
+      bench,
+      graphics: [],
+    });
     set({ lineup });
   },
 
@@ -60,13 +67,12 @@ export const useMatchLineupStore = create<MatchLineupState>((set, get) => ({
       : [...lineup.assignments, { slotId: `manual-${playerId}`, playerId, x, y }];
     const bench = lineup.bench.filter((id) => id !== playerId);
 
-    const updated = await saveMatchLineup(
-      teamId,
-      matchId,
-      lineup.formationTemplateId,
+    const updated = await saveMatchLineup(teamId, matchId, {
+      formationTemplateId: lineup.formationTemplateId,
       assignments,
-      bench
-    );
+      bench,
+      graphics: lineup.graphics,
+    });
     set({ lineup: updated });
   },
 
@@ -78,13 +84,12 @@ export const useMatchLineupStore = create<MatchLineupState>((set, get) => ({
     const assignments = lineup.assignments.filter((a) => a.playerId !== playerId);
     const bench = lineup.bench.includes(playerId) ? lineup.bench : [...lineup.bench, playerId];
 
-    const updated = await saveMatchLineup(
-      teamId,
-      matchId,
-      lineup.formationTemplateId,
+    const updated = await saveMatchLineup(teamId, matchId, {
+      formationTemplateId: lineup.formationTemplateId,
       assignments,
-      bench
-    );
+      bench,
+      graphics: lineup.graphics,
+    });
     set({ lineup: updated });
   },
 
@@ -98,13 +103,54 @@ export const useMatchLineupStore = create<MatchLineupState>((set, get) => ({
       a.playerId === playerId ? { ...a, instructions: trimmed || undefined } : a
     );
 
-    const updated = await saveMatchLineup(
-      teamId,
-      matchId,
-      lineup.formationTemplateId,
+    const updated = await saveMatchLineup(teamId, matchId, {
+      formationTemplateId: lineup.formationTemplateId,
       assignments,
-      lineup.bench
+      bench: lineup.bench,
+      graphics: lineup.graphics,
+    });
+    set({ lineup: updated });
+  },
+
+  addArrow: async (fromPlayerId, toPlayerId) => {
+    const { lineup, matchId } = get();
+    if (!lineup || !matchId || fromPlayerId === toPlayerId) return;
+    const alreadyExists = lineup.graphics.some(
+      (g) => g.type === "arrow" && g.fromPlayerId === fromPlayerId && g.toPlayerId === toPlayerId
     );
+    if (alreadyExists) return;
+    const teamId = await requireTeamId();
+
+    const arrow: GraphicElement = {
+      id: crypto.randomUUID(),
+      type: "arrow",
+      fromPlayerId,
+      toPlayerId,
+    };
+    const graphics = [...lineup.graphics, arrow];
+
+    const updated = await saveMatchLineup(teamId, matchId, {
+      formationTemplateId: lineup.formationTemplateId,
+      assignments: lineup.assignments,
+      bench: lineup.bench,
+      graphics,
+    });
+    set({ lineup: updated });
+  },
+
+  removeGraphic: async (graphicId) => {
+    const { lineup, matchId } = get();
+    if (!lineup || !matchId) return;
+    const teamId = await requireTeamId();
+
+    const graphics = lineup.graphics.filter((g) => g.id !== graphicId);
+
+    const updated = await saveMatchLineup(teamId, matchId, {
+      formationTemplateId: lineup.formationTemplateId,
+      assignments: lineup.assignments,
+      bench: lineup.bench,
+      graphics,
+    });
     set({ lineup: updated });
   },
 }));
