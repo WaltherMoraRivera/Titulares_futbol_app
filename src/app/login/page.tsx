@@ -27,7 +27,8 @@ type Step = "code" | "pick-player" | "done";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { teamId, teamName, role, playerId, loginWithCode, claimPlayer } = useAuthStore();
+  const { teamId, teamName, role, actualRole, playerId, loginWithCode, claimPlayer } =
+    useAuthStore();
 
   const [step, setStep] = useState<Step>("code");
   const [code, setCode] = useState("");
@@ -47,7 +48,7 @@ export default function LoginPage() {
     setError(null);
     try {
       const resolvedRole: TeamRole = await loginWithCode(code);
-      if (resolvedRole === "dt") {
+      if (resolvedRole === "dt" || resolvedRole === "admin") {
         setStep("done");
         return;
       }
@@ -155,7 +156,11 @@ export default function LoginPage() {
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 text-center">
           <p className="text-sm text-muted-foreground">
             Listo. Entraste a <span className="font-medium text-foreground">{teamName}</span>{" "}
-            {role === "dt" ? "como DT/Capitán." : "como jugador."}
+            {actualRole === "admin"
+              ? `como administrador (vista: ${role === "dt" ? "DT/Capitán" : "Jugador"}).`
+              : role === "dt"
+                ? "como DT/Capitán."
+                : "como jugador."}
           </p>
           <Button className="w-full" size="lg" onClick={() => router.push("/")}>
             Ir al inicio

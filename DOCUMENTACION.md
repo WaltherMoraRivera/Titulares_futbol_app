@@ -71,6 +71,7 @@ formacion-ya/
 │  │  ├─ attendance/              # fila de asistencia
 │  │  ├─ board/                   # cancha, banca, tarjeta de jugador, export, compartir, zonas de influencia
 │  │  ├─ history/                 # tarjeta de historial
+│  │  ├─ admin/                   # switcher "ver como Jugador/DT-Capitán" para la cuenta admin
 │  │  └─ pwa/                     # registro del service worker
 │  ├─ hooks/                      # stores Zustand (use-players, use-attendance, use-board, use-history, use-auth)
 │  ├─ lib/supabase/               # cliente de Supabase para el navegador
@@ -207,7 +208,7 @@ interface MatchLineup {
 
 ### 5.7 Login por código de equipo (`/login`) — Fase 0
 
-- Sin usuario/contraseña: se ingresa un código de equipo (uno para jugadores, otro para DT/capitán) y el dispositivo queda identificado. Ver detalle técnico en "Backend (Supabase)" en la sección 8.
+- Sin usuario/contraseña: se ingresa un código de equipo (uno para jugadores, otro para DT/capitán, y uno más de administrador para pruebas — ver sección 5.13) y el dispositivo queda identificado. Ver detalle técnico en "Backend (Supabase)" en la sección 8.
 - El jugador elige su número de camiseta de la plantilla real para "reclamarlo"; desde ese momento su edición de perfil queda asociada a él.
 - La sesión persiste sola entre visitas (no hay que reingresar el código cada vez).
 
@@ -265,7 +266,17 @@ Todavía no conectado con el constructor de formación (`/board`): agendar un pa
 - No requirió tablas, migraciones ni cambios de tipos: es puramente un componente visual sobre datos que ya existían en memoria en ambas pantallas.
 - Probado contra Supabase real (`/matches/[id]/board`) y contra Local Storage (`/board`): en ambos casos el overlay renderiza un círculo con degradé por cada jugador en cancha (verificado que las coordenadas `cx`/`cy` coinciden con las de la formación) y las líneas de cercanía, y desaparece por completo al desactivar el toggle.
 
-### 5.13 PWA
+### 5.13 Cuenta admin y switcher de vista (para pruebas)
+
+- Tercer código de equipo (`admin_code` en `teams`, por defecto **`CONDESFC-ADMIN`** para Las Condes FC) que inicia sesión con rol `admin`. A nivel de Supabase/RLS, `admin` tiene exactamente los mismos permisos de escritura que `dt` en todas las tablas (vía la función `is_dt_or_admin()`), así que cualquier acción que pruebes con esta cuenta queda escrita en la base real igual que si la hiciera el DT.
+- Al entrar con este código aparece un **switcher flotante** ("Vista: Jugador / DT-Capitán") fijo en la parte inferior de la pantalla, en todas las páginas. Cambia lo que el resto de la app "ve" como `role` — sin volver a iniciar sesión — para poder probar de punta a punta tanto las pantallas de solo lectura del jugador como las editables del DT/Capitán.
+- **DT y Capitán muestran exactamente lo mismo**: hoy son el mismo rol de permisos en toda la app (no hay ninguna pantalla ni policy que los distinga), así que el switcher es de dos posiciones, no de tres — ver la decisión tomada con el usuario antes de implementarlo.
+- La vista elegida se guarda en `localStorage` del dispositivo (no en la base), así que persiste entre recargas pero es local a cada navegador/dispositivo donde se use la cuenta admin.
+- Implementación: `src/hooks/use-auth.ts` separa `actualRole` (el rol real que devuelve Supabase: `player` | `dt` | `admin`) del `role` que consume el resto de la app (siempre `player` | `dt`, la vista elegida). Todas las pantallas existentes siguen comparando `role === "dt"` sin ningún cambio — el switcher solo reescribe qué valor devuelve ese campo cuando la cuenta real es admin. El componente `src/features/admin/admin-view-switcher.tsx` se monta una sola vez en `layout.tsx` y no renderiza nada si `actualRole !== "admin"`.
+- Migración `0006_admin_role.sql`: agrega la columna `teams.admin_code`, permite `'admin'` en el check de `profiles.role`, agrega `is_dt_or_admin()`, extiende `claim_team(code)` para reconocer el nuevo código, y reemplaza cada policy de RLS que chequeaba `current_role() = 'dt'` por `is_dt_or_admin()` (players, matches, match_attendance, match_lineups, match_results, match_goals, match_cards). No cambia ningún comportamiento existente para las cuentas de jugador o DT/Capitán.
+- Probado de punta a punta contra Supabase real: login con `CONDESFC-ADMIN`, escritura confirmada bajo RLS (insert/delete de prueba en `matches`), y el switcher verificado en `/players` — oculta/muestra Importar/Exportar/Agregar/Editar/Eliminar al alternar entre vistas, y la elección persiste tras recargar la página.
+
+### 5.14 PWA
 - Instalable (`manifest.ts`, ícono = miniatura cuadrada del escudo de Las Condes FC (`public/icon.png`, 1254×1254), soporte iOS).
 - Service worker con estrategia cache-first para uso básico offline (activo solo en producción, para no interferir con el hot-reload en desarrollo).
 
@@ -416,6 +427,7 @@ El jugador, una vez dentro, reclama su número de camiseta de la plantilla (o cr
 - `0003_get_my_team.sql` — función `get_my_team()`, para que un dispositivo ya logueado recupere su equipo/rol/jugador reclamado sin volver a pedir el código (rehidrata la sesión al recargar la app).
 - `0004_match_lineups.sql` — tabla `match_lineups` (Fase 3): una fila por `match_id` con `formation_template_id`, `assignments` (jsonb) y `bench` (jsonb). Select para todo el equipo, insert/update/delete restringidos a `dt` vía RLS.
 - `0005_match_results.sql` — registro post-partido (Fase 4): `match_results` (una fila por `match_id` con marcador propio/rival y notas del DT), `match_goals` y `match_cards` (una fila por gol/tarjeta, con jugador y minuto opcional). Select para todo el equipo; insert/update/delete restringidos a `dt` vía RLS, igual que `match_lineups`.
+- `0006_admin_role.sql` — cuenta admin para pruebas: columna `teams.admin_code`, rol `'admin'` agregado al check de `profiles.role`, función `is_dt_or_admin()`, `claim_team` extendida para reconocer el nuevo código, y todas las policies que antes chequeaban `current_role() = 'dt'` reescritas para usar `is_dt_or_admin()`. Ver sección 5.13.
 
 `teams` **no tiene policy de select** a propósito: la única forma de leer/usar los códigos es a través de las funciones `claim_team`/`get_my_team`, así un código incorrecto no revela nada de la tabla.
 
@@ -427,7 +439,9 @@ Como el login automático del CLI de Supabase no funciona en este entorno de des
 
 Probado de punta a punta: login con código de jugador, listado de plantilla, reclamo de un número, y confirmación de que `players.claimed_by` quedó escrito en la base real.
 
-**Estado:** login, reclamo de jugador, gestión de la plantilla (`/players`), partidos agendados con asistencia anticipada (`/matches`, Fase 2), formación + instrucciones tácticas por partido (`/matches/[id]/board`, Fase 3), resultado post-partido con goleadores y tarjetas (`/matches/[id]/result`, Fase 4), estadísticas de temporada (`/stats`, Fase 5) **y zonas de influencia visuales sobre la cancha** (Fase 6) funcionando en producción real contra Supabase, con permisos por rol probados de punta a punta (edición propia para jugador, control total para DT/capitán, verificado también que las políticas de RLS bloquean del lado del servidor, no solo en la interfaz). El flujo local original (`/attendance` → `/formation` → `/board` → `/history`) sigue vivo aparte, sin migrar a Supabase, como atajo rápido del DT para armar una formación suelta sin agendar un partido.
+**Estado:** login, reclamo de jugador, gestión de la plantilla (`/players`), partidos agendados con asistencia anticipada (`/matches`, Fase 2), formación + instrucciones tácticas por partido (`/matches/[id]/board`, Fase 3), resultado post-partido con goleadores y tarjetas (`/matches/[id]/result`, Fase 4), estadísticas de temporada (`/stats`, Fase 5), zonas de influencia visuales sobre la cancha (Fase 6) **y una cuenta admin con switcher de vista para pruebas** funcionando en producción real contra Supabase, con permisos por rol probados de punta a punta (edición propia para jugador, control total para DT/capitán, verificado también que las políticas de RLS bloquean del lado del servidor, no solo en la interfaz). El flujo local original (`/attendance` → `/formation` → `/board` → `/history`) sigue vivo aparte, sin migrar a Supabase, como atajo rápido del DT para armar una formación suelta sin agendar un partido.
+
+**Códigos de equipo (Las Condes FC):** jugador `CONDESFC-JUGADOR` · DT/Capitán `CONDESFC-CAPITAN` · admin (pruebas, switcher de vista) `CONDESFC-ADMIN`.
 
 ### Repositorio y paquete Android
 
@@ -438,7 +452,7 @@ Probado de punta a punta: login con código de jugador, listado de plantilla, re
 
 ## 9. Estado del proyecto y pendientes
 
-**Completado:** login por código de equipo con roles (Fase 0), gestión de jugadores sobre Supabase con alias y permisos por rol, partidos agendados con asistencia anticipada (Fase 2), formación + instrucciones tácticas atadas a cada partido agendado con vista editable para el DT y de solo lectura para el jugador (Fase 3, sobre Supabase), registro post-partido con marcador, goleadores, tarjetas y notas del DT (Fase 4, sobre Supabase), estadísticas de temporada agregadas por jugador y récord del equipo (Fase 5, sobre Supabase), zonas de influencia visuales sobre la cancha en ambas pantallas de formación (Fase 6), constructor de formación local con drag & drop (con `DragOverlay` para que la tarjeta arrastrada no se recorte ni desaparezca, banca con desplazamiento lateral), compartir por imagen con Web Share API (incluye instrucciones tácticas), historial, animaciones, responsive, PWA instalable con ícono de marca, tema visual oscuro con paleta del escudo de Las Condes FC, despliegue en producción con HTTPS + auto-deploy desde GitHub, paquete `.apk` para instalación directa en Android.
+**Completado:** login por código de equipo con roles (Fase 0), gestión de jugadores sobre Supabase con alias y permisos por rol, partidos agendados con asistencia anticipada (Fase 2), formación + instrucciones tácticas atadas a cada partido agendado con vista editable para el DT y de solo lectura para el jugador (Fase 3, sobre Supabase), registro post-partido con marcador, goleadores, tarjetas y notas del DT (Fase 4, sobre Supabase), estadísticas de temporada agregadas por jugador y récord del equipo (Fase 5, sobre Supabase), zonas de influencia visuales sobre la cancha en ambas pantallas de formación (Fase 6), cuenta admin con switcher de vista Jugador/DT-Capitán para pruebas, constructor de formación local con drag & drop (con `DragOverlay` para que la tarjeta arrastrada no se recorte ni desaparezca, banca con desplazamiento lateral), compartir por imagen con Web Share API (incluye instrucciones tácticas), historial, animaciones, responsive, PWA instalable con ícono de marca, tema visual oscuro con paleta del escudo de Las Condes FC, despliegue en producción con HTTPS + auto-deploy desde GitHub, paquete `.apk` para instalación directa en Android.
 
 ### Roadmap: de "ver la formación" a plataforma del equipo
 

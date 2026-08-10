@@ -1,18 +1,38 @@
 import { create } from "zustand";
 import { supabase } from "@/lib/supabase/client";
 
-export type TeamRole = "player" | "dt";
+export type TeamRole = "player" | "dt" | "admin";
+export type PreviewRole = "player" | "dt";
+
+const PREVIEW_ROLE_KEY = "titulares:admin-preview-role";
+
+function loadPreviewRole(): PreviewRole {
+  if (typeof window === "undefined") return "dt";
+  const stored = window.localStorage.getItem(PREVIEW_ROLE_KEY);
+  return stored === "player" ? "player" : "dt";
+}
+
+function savePreviewRole(role: PreviewRole) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(PREVIEW_ROLE_KEY, role);
+}
 
 interface AuthState {
   loaded: boolean;
   teamId: string | null;
   teamName: string | null;
-  role: TeamRole | null;
+  /** Rol "efectivo" que consume el resto de la app: para una cuenta admin,
+   * es la vista elegida en el switcher (Jugador o DT/Capitán), no el rol
+   * real guardado en la base. */
+  role: PreviewRole | null;
+  /** Rol real devuelto por Supabase, sin aplicar la vista del switcher. */
+  actualRole: TeamRole | null;
   playerId: string | null;
   load: () => Promise<void>;
   loginWithCode: (code: string) => Promise<TeamRole>;
   claimPlayer: (playerId: string) => Promise<void>;
   logout: () => Promise<void>;
+  setPreviewRole: (role: PreviewRole) => void;
 }
 
 async function ensureAnonymousSession() {
@@ -22,11 +42,16 @@ async function ensureAnonymousSession() {
   if (error) throw error;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+function resolveDisplayRole(actualRole: TeamRole): PreviewRole {
+  return actualRole === "admin" ? loadPreviewRole() : (actualRole as PreviewRole);
+}
+
+export const useAuthStore = create<AuthState>((set, get) => ({
   loaded: false,
   teamId: null,
   teamName: null,
   role: null,
+  actualRole: null,
   playerId: null,
 
   load: async () => {
@@ -43,11 +68,13 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
 
     const row = teamData[0];
+    const actualRole = row.role as TeamRole;
     set({
       loaded: true,
       teamId: row.team_id,
       teamName: row.team_name,
-      role: row.role,
+      role: resolveDisplayRole(actualRole),
+      actualRole,
       playerId: row.player_id,
     });
   },
@@ -59,13 +86,15 @@ export const useAuthStore = create<AuthState>((set) => ({
       throw new Error("Código inválido.");
     }
     const row = data[0];
+    const actualRole = row.role as TeamRole;
     set({
       teamId: row.team_id,
       teamName: row.team_name,
-      role: row.role,
+      role: resolveDisplayRole(actualRole),
+      actualRole,
       playerId: null,
     });
-    return row.role as TeamRole;
+    return actualRole;
   },
 
   claimPlayer: async (playerId) => {
@@ -76,6 +105,12 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: async () => {
     await supabase.auth.signOut();
-    set({ teamId: null, teamName: null, role: null, playerId: null });
+    set({ teamId: null, teamName: null, role: null, actualRole: null, playerId: null });
+  },
+
+  setPreviewRole: (previewRole) => {
+    if (get().actualRole !== "admin") return;
+    savePreviewRole(previewRole);
+    set({ role: previewRole });
   },
 }));

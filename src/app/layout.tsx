@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ServiceWorkerRegister } from "@/features/pwa/sw-register";
+import { AdminViewSwitcher } from "@/features/admin/admin-view-switcher";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -50,6 +51,7 @@ export default function RootLayout({
         <TooltipProvider>
           {children}
           <Toaster />
+          <AdminViewSwitcher />
         </TooltipProvider>
         <ServiceWorkerRegister />
       </body>
