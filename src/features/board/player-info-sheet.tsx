@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   Sheet,
   SheetContent,
@@ -13,12 +14,19 @@ import { Player, POSITION_LABELS } from "@/types";
 import { getPositionColor } from "@/utils/position-colors";
 import { getDisplayName } from "@/utils/player-display";
 import { Button } from "@/components/ui/button";
+import { Map } from "lucide-react";
 
 interface PlayerInfoSheetProps {
   player: Player | null;
   onOpenChange: (open: boolean) => void;
   onBench?: (player: Player) => void;
   showBenchAction: boolean;
+  /** Si se pasa, muestra un botón para ir al mapa táctico individual de
+   * este jugador (usado en /matches/[id]/board, que ya no edita
+   * instrucciones acá — eso vive en la página del mapa). */
+  mapHref?: string;
+  /** Edición/visualización de instrucciones en el lugar (usado por el
+   * constructor local /board, que no tiene páginas por jugador). */
   instructions?: string;
   onInstructionsChange?: (playerId: string, instructions: string) => void;
 }
@@ -28,6 +36,7 @@ export function PlayerInfoSheet({
   onOpenChange,
   onBench,
   showBenchAction,
+  mapHref,
   instructions,
   onInstructionsChange,
 }: PlayerInfoSheetProps) {
@@ -98,6 +107,15 @@ export function PlayerInfoSheet({
                   <Label>Instrucciones tácticas</Label>
                   <p className="rounded-md border bg-muted/50 p-2 text-sm">{instructions}</p>
                 </div>
+              )}
+
+              {mapHref && (
+                <Link href={mapHref} className="block">
+                  <Button variant="outline" className="w-full">
+                    <Map className="mr-2 h-4 w-4" />
+                    Ver mapa táctico
+                  </Button>
+                </Link>
               )}
 
               {showBenchAction && onBench && (

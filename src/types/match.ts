@@ -1,4 +1,4 @@
-import { GraphicElement, LineupAssignment } from "./lineup";
+import { LineupAssignment, PlayerTacticalMap } from "./lineup";
 
 export interface Match {
   id: string;
@@ -26,7 +26,7 @@ export interface MatchLineupData {
   formationTemplateId: string;
   assignments: LineupAssignment[];
   bench: string[];
-  graphics: GraphicElement[];
+  tacticalMaps: PlayerTacticalMap[];
   updatedAt: string;
 }
 

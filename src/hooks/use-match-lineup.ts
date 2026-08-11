@@ -1,26 +1,27 @@
 import { create } from "zustand";
-import { GraphicElement, MatchLineupData, Player, Point } from "@/types";
+import { MatchLineupData, Player, PlayerTacticalMap, Point } from "@/types";
 import { assignPlayersToFormation } from "@/utils/assign-formation";
 import { getFormationPreset } from "@/utils/formation-presets";
 import { fetchMatchLineup, saveMatchLineup } from "@/services/supabase-match-service";
 import { useAuthStore } from "@/hooks/use-auth";
 
-const MAX_GRAPHICS_HISTORY = 20;
+const MAX_MAP_HISTORY = 20;
 
 interface MatchLineupState {
   matchId: string | null;
   lineup: MatchLineupData | null;
   loaded: boolean;
-  graphicsHistory: GraphicElement[][];
+  /** Pila de deshacer por jugador (ownerId -> versiones anteriores de su mapa). */
+  mapHistory: Record<string, PlayerTacticalMap[]>;
   loadForMatch: (matchId: string) => Promise<void>;
   startFormation: (formationTemplateId: string, attendees: Player[]) => Promise<void>;
   moveToField: (playerId: string, x: number, y: number) => Promise<void>;
   moveToBench: (playerId: string) => Promise<void>;
   setInstructions: (playerId: string, instructions: string) => Promise<void>;
-  addArrow: (fromPlayerId: string, toPlayerId: string) => Promise<void>;
-  addZone: (points: Point[]) => Promise<void>;
-  removeGraphic: (graphicId: string) => Promise<void>;
-  undoGraphics: () => Promise<void>;
+  setConnectedPlayers: (ownerId: string, connectedPlayerIds: string[]) => Promise<void>;
+  addZone: (ownerId: string, points: Point[]) => Promise<void>;
+  removeZone: (ownerId: string, zoneId: string) => Promise<void>;
+  undoMap: (ownerId: string) => Promise<void>;
 }
 
 async function requireTeamId(): Promise<string> {
@@ -33,32 +34,44 @@ async function requireTeamId(): Promise<string> {
   return auth.teamId;
 }
 
-export const useMatchLineupStore = create<MatchLineupState>((set, get) => {
-  /** Guarda un nuevo arreglo de graphics, empujando el estado anterior a la
-   * pila de deshacer (acotada) antes de persistir. */
-  async function saveGraphics(newGraphics: GraphicElement[]) {
-    const { lineup, matchId, graphicsHistory } = get();
-    if (!lineup || !matchId) return;
-    const teamId = await requireTeamId();
+function getOrCreateMap(maps: PlayerTacticalMap[], ownerId: string): PlayerTacticalMap {
+  return maps.find((m) => m.ownerId === ownerId) ?? { ownerId, connectedPlayerIds: [], zones: [] };
+}
 
-    const updated = await saveMatchLineup(teamId, matchId, {
+function upsertMap(maps: PlayerTacticalMap[], updated: PlayerTacticalMap): PlayerTacticalMap[] {
+  const exists = maps.some((m) => m.ownerId === updated.ownerId);
+  return exists ? maps.map((m) => (m.ownerId === updated.ownerId ? updated : m)) : [...maps, updated];
+}
+
+export const useMatchLineupStore = create<MatchLineupState>((set, get) => {
+  /** Guarda el mapa actualizado de un jugador, empujando la versión anterior
+   * a su pila de deshacer (acotada, y separada por jugador para que
+   * "deshacer" en el mapa de un jugador nunca afecte el de otro). */
+  async function saveMap(ownerId: string, updated: PlayerTacticalMap) {
+    const { lineup, mapHistory } = get();
+    if (!lineup) return;
+    const teamId = await requireTeamId();
+    const previous = getOrCreateMap(lineup.tacticalMaps, ownerId);
+
+    const savedLineup = await saveMatchLineup(teamId, lineup.matchId, {
       formationTemplateId: lineup.formationTemplateId,
       assignments: lineup.assignments,
       bench: lineup.bench,
-      graphics: newGraphics,
+      tacticalMaps: upsertMap(lineup.tacticalMaps, updated),
     });
-    const history = [...graphicsHistory, lineup.graphics].slice(-MAX_GRAPHICS_HISTORY);
-    set({ lineup: updated, graphicsHistory: history });
+
+    const stack = [...(mapHistory[ownerId] ?? []), previous].slice(-MAX_MAP_HISTORY);
+    set({ lineup: savedLineup, mapHistory: { ...mapHistory, [ownerId]: stack } });
   }
 
   return {
     matchId: null,
     lineup: null,
     loaded: false,
-    graphicsHistory: [],
+    mapHistory: {},
 
     loadForMatch: async (matchId) => {
-      set({ loaded: false, graphicsHistory: [] });
+      set({ loaded: false, mapHistory: {} });
       const lineup = await fetchMatchLineup(matchId);
       set({ matchId, lineup, loaded: true });
     },
@@ -75,9 +88,9 @@ export const useMatchLineupStore = create<MatchLineupState>((set, get) => {
         formationTemplateId,
         assignments,
         bench,
-        graphics: [],
+        tacticalMaps: [],
       });
-      set({ lineup, graphicsHistory: [] });
+      set({ lineup, mapHistory: {} });
     },
 
     moveToField: async (playerId, x, y) => {
@@ -95,7 +108,7 @@ export const useMatchLineupStore = create<MatchLineupState>((set, get) => {
         formationTemplateId: lineup.formationTemplateId,
         assignments,
         bench,
-        graphics: lineup.graphics,
+        tacticalMaps: lineup.tacticalMaps,
       });
       set({ lineup: updated });
     },
@@ -112,7 +125,7 @@ export const useMatchLineupStore = create<MatchLineupState>((set, get) => {
         formationTemplateId: lineup.formationTemplateId,
         assignments,
         bench,
-        graphics: lineup.graphics,
+        tacticalMaps: lineup.tacticalMaps,
       });
       set({ lineup: updated });
     },
@@ -131,54 +144,51 @@ export const useMatchLineupStore = create<MatchLineupState>((set, get) => {
         formationTemplateId: lineup.formationTemplateId,
         assignments,
         bench: lineup.bench,
-        graphics: lineup.graphics,
+        tacticalMaps: lineup.tacticalMaps,
       });
       set({ lineup: updated });
     },
 
-    addArrow: async (fromPlayerId, toPlayerId) => {
-      const { lineup } = get();
-      if (!lineup || fromPlayerId === toPlayerId) return;
-      const alreadyExists = lineup.graphics.some(
-        (g) => g.type === "arrow" && g.fromPlayerId === fromPlayerId && g.toPlayerId === toPlayerId
-      );
-      if (alreadyExists) return;
-
-      const arrow: GraphicElement = {
-        id: crypto.randomUUID(),
-        type: "arrow",
-        fromPlayerId,
-        toPlayerId,
-      };
-      await saveGraphics([...lineup.graphics, arrow]);
-    },
-
-    addZone: async (points) => {
+    setConnectedPlayers: async (ownerId, connectedPlayerIds) => {
       const { lineup } = get();
       if (!lineup) return;
-      const zone: GraphicElement = { id: crypto.randomUUID(), type: "zone", points };
-      await saveGraphics([...lineup.graphics, zone]);
+      const current = getOrCreateMap(lineup.tacticalMaps, ownerId);
+      await saveMap(ownerId, { ...current, connectedPlayerIds });
     },
 
-    removeGraphic: async (graphicId) => {
+    addZone: async (ownerId, points) => {
       const { lineup } = get();
       if (!lineup) return;
-      await saveGraphics(lineup.graphics.filter((g) => g.id !== graphicId));
+      const current = getOrCreateMap(lineup.tacticalMaps, ownerId);
+      const zone = { id: crypto.randomUUID(), points };
+      await saveMap(ownerId, { ...current, zones: [...current.zones, zone] });
     },
 
-    undoGraphics: async () => {
-      const { lineup, matchId, graphicsHistory } = get();
-      if (!lineup || !matchId || graphicsHistory.length === 0) return;
+    removeZone: async (ownerId, zoneId) => {
+      const { lineup } = get();
+      if (!lineup) return;
+      const current = getOrCreateMap(lineup.tacticalMaps, ownerId);
+      await saveMap(ownerId, { ...current, zones: current.zones.filter((z) => z.id !== zoneId) });
+    },
+
+    undoMap: async (ownerId) => {
+      const { lineup, matchId, mapHistory } = get();
+      if (!lineup || !matchId) return;
+      const stack = mapHistory[ownerId] ?? [];
+      if (stack.length === 0) return;
       const teamId = await requireTeamId();
 
-      const previous = graphicsHistory[graphicsHistory.length - 1];
-      const updated = await saveMatchLineup(teamId, matchId, {
+      const previous = stack[stack.length - 1];
+      const savedLineup = await saveMatchLineup(teamId, matchId, {
         formationTemplateId: lineup.formationTemplateId,
         assignments: lineup.assignments,
         bench: lineup.bench,
-        graphics: previous,
+        tacticalMaps: upsertMap(lineup.tacticalMaps, previous),
       });
-      set({ lineup: updated, graphicsHistory: graphicsHistory.slice(0, -1) });
+      set({
+        lineup: savedLineup,
+        mapHistory: { ...mapHistory, [ownerId]: stack.slice(0, -1) },
+      });
     },
   };
 });

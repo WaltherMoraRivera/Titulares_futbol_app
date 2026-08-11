@@ -2,7 +2,6 @@ import { supabase } from "@/lib/supabase/client";
 import {
   AttendanceStatus,
   CardType,
-  GraphicElement,
   LineupAssignment,
   Match,
   MatchAttendance,
@@ -11,6 +10,7 @@ import {
   MatchInput,
   MatchLineupData,
   MatchResult,
+  PlayerTacticalMap,
 } from "@/types";
 
 interface MatchRow {
@@ -120,7 +120,7 @@ interface MatchLineupRow {
   formation_template_id: string;
   assignments: LineupAssignment[];
   bench: string[];
-  graphics: GraphicElement[];
+  tactical_maps: PlayerTacticalMap[];
   updated_at: string;
 }
 
@@ -130,7 +130,7 @@ function rowToMatchLineup(row: MatchLineupRow): MatchLineupData {
     formationTemplateId: row.formation_template_id,
     assignments: row.assignments,
     bench: row.bench,
-    graphics: row.graphics ?? [],
+    tacticalMaps: row.tactical_maps ?? [],
     updatedAt: row.updated_at,
   };
 }
@@ -149,7 +149,7 @@ interface SaveMatchLineupInput {
   formationTemplateId: string;
   assignments: LineupAssignment[];
   bench: string[];
-  graphics: GraphicElement[];
+  tacticalMaps: PlayerTacticalMap[];
 }
 
 export async function saveMatchLineup(
@@ -166,7 +166,7 @@ export async function saveMatchLineup(
         formation_template_id: input.formationTemplateId,
         assignments: input.assignments,
         bench: input.bench,
-        graphics: input.graphics,
+        tactical_maps: input.tacticalMaps,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "match_id" }

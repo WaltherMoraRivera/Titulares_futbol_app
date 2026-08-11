@@ -11,23 +11,21 @@ export interface Point {
   y: number;
 }
 
-/** Flecha entre dos jugadores: guarda la relación, no coordenadas fijas —
- * al mover a cualquiera de los dos, la curva se recalcula sola. */
-export interface ArrowGraphic {
-  id: string;
-  type: "arrow";
-  fromPlayerId: string;
-  toPlayerId: string;
-}
-
-/** Zona libre dibujada a mano alzada (Fase 7.3). */
+/** Zona libre dibujada a mano alzada, propia del mapa táctico de un jugador. */
 export interface ZoneGraphic {
   id: string;
-  type: "zone";
   points: Point[];
 }
 
-export type GraphicElement = ArrowGraphic | ZoneGraphic;
+/** Mapa táctico curado por el DT para un jugador específico: qué compañeros
+ * se le muestran (con una flecha desde su posición hacia cada uno) y qué
+ * zonas propias tiene dibujadas. No hay coordenadas fijas para las flechas
+ * — se recalculan desde la posición actual de cada jugador en `assignments`. */
+export interface PlayerTacticalMap {
+  ownerId: string;
+  connectedPlayerIds: string[];
+  zones: ZoneGraphic[];
+}
 
 export interface MatchLineup {
   id: string;
