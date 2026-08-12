@@ -19,12 +19,7 @@ interface MatchLineupState {
   moveToBench: (playerId: string) => Promise<void>;
   setInstructions: (playerId: string, instructions: string) => Promise<void>;
   setConnectedPlayers: (ownerId: string, connectedPlayerIds: string[]) => Promise<void>;
-  addArrow: (
-    ownerId: string,
-    fromPlayerId: string,
-    toPlayerId: string,
-    color: TacticalColor
-  ) => Promise<void>;
+  addArrow: (ownerId: string, from: Point, to: Point, color: TacticalColor) => Promise<void>;
   removeArrow: (ownerId: string, arrowId: string) => Promise<void>;
   addZone: (ownerId: string, points: Point[], color: TacticalColor) => Promise<void>;
   removeZone: (ownerId: string, zoneId: string) => Promise<void>;
@@ -170,11 +165,11 @@ export const useMatchLineupStore = create<MatchLineupState>((set, get) => {
       await saveMap(ownerId, { ...current, connectedPlayerIds });
     },
 
-    addArrow: async (ownerId, fromPlayerId, toPlayerId, color) => {
+    addArrow: async (ownerId, from, to, color) => {
       const { lineup } = get();
-      if (!lineup || fromPlayerId === toPlayerId) return;
+      if (!lineup) return;
       const current = getOrCreateMap(lineup.tacticalMaps, ownerId);
-      const arrow = { id: crypto.randomUUID(), fromPlayerId, toPlayerId, color };
+      const arrow = { id: crypto.randomUUID(), from, to, color };
       await saveMap(ownerId, { ...current, arrows: [...current.arrows, arrow] });
     },
 

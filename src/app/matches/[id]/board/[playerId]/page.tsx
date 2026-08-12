@@ -2,7 +2,6 @@
 
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,6 +13,7 @@ import { PitchBackground } from "@/features/board/pitch-background";
 import { PlayerCardVisual } from "@/features/board/player-card-visual";
 import { PlayerMapLayer } from "@/features/board/player-map-layer";
 import { ZoneDrawingLayer } from "@/features/board/zone-drawing-layer";
+import { ArrowDrawingLayer } from "@/features/board/arrow-drawing-layer";
 import { getDisplayName } from "@/utils/player-display";
 import { TACTICAL_COLOR_HEX } from "@/utils/tactical-colors";
 import { cn } from "@/lib/utils";
@@ -49,7 +49,6 @@ export default function PlayerTacticalMapPage({
   const [editingCompanions, setEditingCompanions] = useState(false);
   const [tool, setTool] = useState<Tool>("none");
   const [drawColor, setDrawColor] = useState<TacticalColor>("green");
-  const [arrowOriginId, setArrowOriginId] = useState<string | null>(null);
   const [instructionsDraft, setInstructionsDraft] = useState("");
 
   const isDt = role === "dt";
@@ -94,12 +93,10 @@ export default function PlayerTacticalMapPage({
 
   function selectTool(next: Tool) {
     setTool((current) => (current === next ? "none" : next));
-    setArrowOriginId(null);
   }
 
   function startEditingCompanions() {
     setTool("none");
-    setArrowOriginId(null);
     setEditingCompanions(true);
   }
 
@@ -114,20 +111,8 @@ export default function PlayerTacticalMapPage({
     setConnectedPlayers(playerId, next);
   }
 
-  function handleArrowTap(tappedId: string) {
-    if (!arrowOriginId) {
-      setArrowOriginId(tappedId);
-      const player = playersById.get(tappedId);
-      toast.info(`Origen: ${player ? getDisplayName(player) : ""}. Toca el destino.`);
-      return;
-    }
-    if (arrowOriginId === tappedId) {
-      setArrowOriginId(null);
-      toast.info("Selección cancelada.");
-      return;
-    }
-    addArrow(playerId, arrowOriginId, tappedId, drawColor);
-    setArrowOriginId(null);
+  function handleArrowComplete(from: Point, to: Point) {
+    addArrow(playerId, from, to, drawColor);
   }
 
   function handleZoneComplete(points: Point[]) {
@@ -256,9 +241,7 @@ export default function PlayerTacticalMapPage({
       )}
       {!editingCompanions && tool === "arrow" && (
         <p className="mb-3 rounded-lg border border-dashed bg-muted/40 p-2 text-center text-xs text-muted-foreground">
-          {arrowOriginId
-            ? "Toca el jugador destino de la flecha (o vuelve a tocar el origen para cancelar)."
-            : "Toca el jugador de origen de la flecha."}
+          Dibuja la flecha con el dedo: desde el origen hasta el destino.
         </p>
       )}
       {!editingCompanions && tool === "zone" && (
@@ -291,10 +274,15 @@ export default function PlayerTacticalMapPage({
             />
           )}
 
-          <button
-            type="button"
-            disabled={editingCompanions || !isDt || tool !== "arrow"}
-            onClick={() => handleArrowTap(owner.id)}
+          {isDt && !editingCompanions && tool === "arrow" && (
+            <ArrowDrawingLayer
+              active
+              color={TACTICAL_COLOR_HEX[drawColor]}
+              onComplete={handleArrowComplete}
+            />
+          )}
+
+          <div
             className="absolute flex min-h-[64px] min-w-[56px] flex-col items-center justify-center gap-1"
             style={{
               left: `${ownerAssignment.x}%`,
@@ -307,50 +295,41 @@ export default function PlayerTacticalMapPage({
               variant="field"
               hasInstructions={!!ownerAssignment.instructions?.trim()}
             />
-          </button>
+          </div>
 
-          {editingCompanions
-            ? otherOnFieldAssignments.map((a) => {
-                const player = playersById.get(a.playerId);
-                if (!player) return null;
-                const selected = connectedIds.includes(a.playerId);
-                return (
-                  <button
-                    key={a.playerId}
-                    type="button"
-                    onClick={() => isDt && toggleCompanion(a.playerId)}
-                    className="absolute flex min-h-[64px] min-w-[56px] flex-col items-center justify-center gap-1 transition-opacity"
-                    style={{
-                      left: `${a.x}%`,
-                      top: `${a.y}%`,
-                      translate: "-50% -50%",
-                      opacity: selected ? 1 : 0.3,
-                    }}
-                  >
-                    <PlayerCardVisual player={player} variant="field" />
-                  </button>
-                );
-              })
-            : connectedAssignments.map((a) => {
-                const player = playersById.get(a.playerId);
-                if (!player) return null;
-                return (
-                  <button
-                    key={a.playerId}
-                    type="button"
-                    disabled={!isDt || tool !== "arrow"}
-                    onClick={() => handleArrowTap(a.playerId)}
-                    className="absolute flex min-h-[64px] min-w-[56px] flex-col items-center justify-center gap-1"
-                    style={{
-                      left: `${a.x}%`,
-                      top: `${a.y}%`,
-                      translate: "-50% -50%",
-                    }}
-                  >
-                    <PlayerCardVisual player={player} variant="field" />
-                  </button>
-                );
-              })}
+          {(editingCompanions ? otherOnFieldAssignments : connectedAssignments).map((a) => {
+            const player = playersById.get(a.playerId);
+            if (!player) return null;
+            const selected = connectedIds.includes(a.playerId);
+            return editingCompanions ? (
+              <button
+                key={a.playerId}
+                type="button"
+                onClick={() => isDt && toggleCompanion(a.playerId)}
+                className="absolute flex min-h-[64px] min-w-[56px] flex-col items-center justify-center gap-1 transition-opacity"
+                style={{
+                  left: `${a.x}%`,
+                  top: `${a.y}%`,
+                  translate: "-50% -50%",
+                  opacity: selected ? 1 : 0.3,
+                }}
+              >
+                <PlayerCardVisual player={player} variant="field" />
+              </button>
+            ) : (
+              <div
+                key={a.playerId}
+                className="absolute flex min-h-[64px] min-w-[56px] flex-col items-center justify-center gap-1"
+                style={{
+                  left: `${a.x}%`,
+                  top: `${a.y}%`,
+                  translate: "-50% -50%",
+                }}
+              >
+                <PlayerCardVisual player={player} variant="field" />
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -383,32 +362,26 @@ export default function PlayerTacticalMapPage({
             Flechas ({arrows.length})
           </p>
           <div className="space-y-1.5">
-            {arrows.map((arrow) => {
-              const from = playersById.get(arrow.fromPlayerId);
-              const to = playersById.get(arrow.toPlayerId);
-              return (
-                <div
-                  key={arrow.id}
-                  className="flex items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 text-sm"
+            {arrows.map((arrow, index) => (
+              <div
+                key={arrow.id}
+                className="flex items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 text-sm"
+              >
+                <span
+                  className="h-3 w-3 shrink-0 rounded-full"
+                  style={{ backgroundColor: TACTICAL_COLOR_HEX[arrow.color] }}
+                />
+                <span className="min-w-0 flex-1 truncate">Flecha {index + 1}</span>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label="Quitar flecha"
+                  onClick={() => removeArrow(playerId, arrow.id)}
                 >
-                  <span
-                    className="h-3 w-3 shrink-0 rounded-full"
-                    style={{ backgroundColor: TACTICAL_COLOR_HEX[arrow.color] }}
-                  />
-                  <span className="min-w-0 flex-1 truncate">
-                    {from ? getDisplayName(from) : "?"} → {to ? getDisplayName(to) : "?"}
-                  </span>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    aria-label="Quitar flecha"
-                    onClick={() => removeArrow(playerId, arrow.id)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              );
-            })}
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
           </div>
         </div>
       )}

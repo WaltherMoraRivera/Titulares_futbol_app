@@ -13,19 +13,7 @@ interface PlayerMapLayerProps {
 }
 
 function computeStraightPath(from: Point, to: Point) {
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const dist = Math.hypot(dx, dy) || 1;
-  const ux = dx / dist;
-  const uy = dy / dist;
-  const trim = Math.min(6, dist * 0.3);
-
-  const startX = from.x + ux * trim;
-  const startY = from.y + uy * trim;
-  const endX = to.x - ux * trim;
-  const endY = to.y - uy * trim;
-
-  return `M ${startX} ${startY} L ${endX} ${endY}`;
+  return `M ${from.x} ${from.y} L ${to.x} ${to.y}`;
 }
 
 const COLORS: TacticalColor[] = ["green", "red"];
@@ -33,8 +21,8 @@ const COLORS: TacticalColor[] = ["green", "red"];
 /** Overlay SVG del mapa táctico de un jugador:
  * - líneas blancas semi-transparentes, sin flecha, entre el dueño y cada
  *   compañero seleccionado (solo indican "están relacionados").
- * - flechas rectas de color (verde/rojo) dibujadas libremente por el DT
- *   entre cualquiera de los jugadores visibles en el mapa.
+ * - flechas rectas de color (verde/rojo) dibujadas libremente por el DT en
+ *   cualquier punto de la cancha, sin atarse a ningún jugador.
  * - zonas cerradas dibujadas a mano alzada, también en verde o rojo. */
 export function PlayerMapLayer({
   ownerAssignment,
@@ -42,24 +30,14 @@ export function PlayerMapLayer({
   arrows,
   zones,
 }: PlayerMapLayerProps) {
-  const positioned = useMemo(() => {
-    const map = new Map<string, LineupAssignment>();
-    map.set(ownerAssignment.playerId, ownerAssignment);
-    for (const a of connectedAssignments) map.set(a.playerId, a);
-    return map;
-  }, [ownerAssignment, connectedAssignments]);
-
   const arrowPaths = useMemo(
     () =>
-      arrows
-        .map((arrow) => {
-          const from = positioned.get(arrow.fromPlayerId);
-          const to = positioned.get(arrow.toPlayerId);
-          if (!from || !to) return null;
-          return { id: arrow.id, color: arrow.color, path: computeStraightPath(from, to) };
-        })
-        .filter((a): a is { id: string; color: TacticalColor; path: string } => a !== null),
-    [arrows, positioned]
+      arrows.map((arrow) => ({
+        id: arrow.id,
+        color: arrow.color,
+        path: computeStraightPath(arrow.from, arrow.to),
+      })),
+    [arrows]
   );
 
   const zonePaths = useMemo(

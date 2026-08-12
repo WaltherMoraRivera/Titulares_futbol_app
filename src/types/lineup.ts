@@ -20,13 +20,12 @@ export interface ZoneGraphic {
   color: TacticalColor;
 }
 
-/** Flecha recta dibujada libremente por el DT entre dos jugadores visibles
- * en el mapa (el dueño o cualquier compañero conectado). Sin coordenadas
- * fijas — se recalcula desde la posición actual de cada jugador. */
+/** Flecha recta dibujada libremente por el DT en cualquier punto de la
+ * cancha (no atada a la posición de ningún jugador). */
 export interface ArrowGraphic {
   id: string;
-  fromPlayerId: string;
-  toPlayerId: string;
+  from: Point;
+  to: Point;
   color: TacticalColor;
 }
 
