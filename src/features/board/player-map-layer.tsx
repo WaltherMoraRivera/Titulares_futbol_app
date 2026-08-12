@@ -1,16 +1,18 @@
 "use client";
 
 import { useMemo } from "react";
-import { LineupAssignment, Point, ZoneGraphic } from "@/types";
+import { ArrowGraphic, LineupAssignment, Point, TacticalColor, ZoneGraphic } from "@/types";
 import { catmullRomToClosedBezierPath } from "@/utils/curve-smoothing";
+import { TACTICAL_COLOR_HEX } from "@/utils/tactical-colors";
 
 interface PlayerMapLayerProps {
   ownerAssignment: LineupAssignment;
   connectedAssignments: LineupAssignment[];
+  arrows: ArrowGraphic[];
   zones: ZoneGraphic[];
 }
 
-function computeArrowPath(from: Point, to: Point) {
+function computeStraightPath(from: Point, to: Point) {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   const dist = Math.hypot(dx, dy) || 1;
@@ -23,39 +25,56 @@ function computeArrowPath(from: Point, to: Point) {
   const endX = to.x - ux * trim;
   const endY = to.y - uy * trim;
 
-  const midX = (startX + endX) / 2;
-  const midY = (startY + endY) / 2;
-  const curveAmount = dist * 0.15;
-  const controlX = midX - uy * curveAmount;
-  const controlY = midY + ux * curveAmount;
-
-  return `M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`;
+  return `M ${startX} ${startY} L ${endX} ${endY}`;
 }
 
-/** Overlay SVG del mapa táctico de un jugador: una flecha desde su posición
- * hacia cada compañero que el DT seleccionó para su mapa, más las zonas
- * propias dibujadas a mano alzada. Mismo sistema de coordenadas en % que el
- * resto de la cancha. */
+const COLORS: TacticalColor[] = ["green", "red"];
+
+/** Overlay SVG del mapa táctico de un jugador:
+ * - líneas blancas semi-transparentes, sin flecha, entre el dueño y cada
+ *   compañero seleccionado (solo indican "están relacionados").
+ * - flechas rectas de color (verde/rojo) dibujadas libremente por el DT
+ *   entre cualquiera de los jugadores visibles en el mapa.
+ * - zonas cerradas dibujadas a mano alzada, también en verde o rojo. */
 export function PlayerMapLayer({
   ownerAssignment,
   connectedAssignments,
+  arrows,
   zones,
 }: PlayerMapLayerProps) {
+  const positioned = useMemo(() => {
+    const map = new Map<string, LineupAssignment>();
+    map.set(ownerAssignment.playerId, ownerAssignment);
+    for (const a of connectedAssignments) map.set(a.playerId, a);
+    return map;
+  }, [ownerAssignment, connectedAssignments]);
+
   const arrowPaths = useMemo(
     () =>
-      connectedAssignments.map((a) => ({
-        id: a.playerId,
-        path: computeArrowPath(ownerAssignment, a),
-      })),
-    [ownerAssignment, connectedAssignments]
+      arrows
+        .map((arrow) => {
+          const from = positioned.get(arrow.fromPlayerId);
+          const to = positioned.get(arrow.toPlayerId);
+          if (!from || !to) return null;
+          return { id: arrow.id, color: arrow.color, path: computeStraightPath(from, to) };
+        })
+        .filter((a): a is { id: string; color: TacticalColor; path: string } => a !== null),
+    [arrows, positioned]
   );
 
   const zonePaths = useMemo(
-    () => zones.map((z) => ({ id: z.id, path: catmullRomToClosedBezierPath(z.points) })),
+    () =>
+      zones.map((z) => ({
+        id: z.id,
+        color: z.color,
+        path: catmullRomToClosedBezierPath(z.points),
+      })),
     [zones]
   );
 
-  if (arrowPaths.length === 0 && zonePaths.length === 0) return null;
+  if (connectedAssignments.length === 0 && arrowPaths.length === 0 && zonePaths.length === 0) {
+    return null;
+  }
 
   return (
     <svg
@@ -65,26 +84,42 @@ export function PlayerMapLayer({
       aria-hidden
     >
       <defs>
-        <marker
-          id="arrow-head"
-          viewBox="0 0 10 10"
-          refX="8"
-          refY="5"
-          markerWidth="3.2"
-          markerHeight="3.2"
-          orient="auto"
-        >
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent)" />
-        </marker>
+        {COLORS.map((color) => (
+          <marker
+            key={color}
+            id={`arrow-head-${color}`}
+            viewBox="0 0 10 10"
+            refX="8"
+            refY="5"
+            markerWidth="3.2"
+            markerHeight="3.2"
+            orient="auto"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" fill={TACTICAL_COLOR_HEX[color]} />
+          </marker>
+        ))}
       </defs>
+
+      {connectedAssignments.map((a) => (
+        <line
+          key={a.playerId}
+          x1={ownerAssignment.x}
+          y1={ownerAssignment.y}
+          x2={a.x}
+          y2={a.y}
+          stroke="white"
+          strokeOpacity={0.35}
+          strokeWidth={0.4}
+        />
+      ))}
 
       {zonePaths.map((zone) => (
         <path
           key={zone.id}
           d={zone.path}
-          fill="var(--primary)"
+          fill={TACTICAL_COLOR_HEX[zone.color]}
           fillOpacity={0.18}
-          stroke="var(--primary)"
+          stroke={TACTICAL_COLOR_HEX[zone.color]}
           strokeOpacity={0.7}
           strokeWidth={0.6}
           strokeLinejoin="round"
@@ -96,10 +131,10 @@ export function PlayerMapLayer({
           key={arrow.id}
           d={arrow.path}
           fill="none"
-          stroke="var(--accent)"
+          stroke={TACTICAL_COLOR_HEX[arrow.color]}
           strokeWidth={1.1}
           strokeLinecap="round"
-          markerEnd="url(#arrow-head)"
+          markerEnd={`url(#arrow-head-${arrow.color})`}
         />
       ))}
     </svg>

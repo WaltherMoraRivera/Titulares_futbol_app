@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { MatchLineupData, Player, PlayerTacticalMap, Point } from "@/types";
+import { MatchLineupData, Player, PlayerTacticalMap, Point, TacticalColor } from "@/types";
 import { assignPlayersToFormation } from "@/utils/assign-formation";
 import { getFormationPreset } from "@/utils/formation-presets";
 import { fetchMatchLineup, saveMatchLineup } from "@/services/supabase-match-service";
@@ -19,7 +19,14 @@ interface MatchLineupState {
   moveToBench: (playerId: string) => Promise<void>;
   setInstructions: (playerId: string, instructions: string) => Promise<void>;
   setConnectedPlayers: (ownerId: string, connectedPlayerIds: string[]) => Promise<void>;
-  addZone: (ownerId: string, points: Point[]) => Promise<void>;
+  addArrow: (
+    ownerId: string,
+    fromPlayerId: string,
+    toPlayerId: string,
+    color: TacticalColor
+  ) => Promise<void>;
+  removeArrow: (ownerId: string, arrowId: string) => Promise<void>;
+  addZone: (ownerId: string, points: Point[], color: TacticalColor) => Promise<void>;
   removeZone: (ownerId: string, zoneId: string) => Promise<void>;
   undoMap: (ownerId: string) => Promise<void>;
 }
@@ -35,7 +42,14 @@ async function requireTeamId(): Promise<string> {
 }
 
 function getOrCreateMap(maps: PlayerTacticalMap[], ownerId: string): PlayerTacticalMap {
-  return maps.find((m) => m.ownerId === ownerId) ?? { ownerId, connectedPlayerIds: [], zones: [] };
+  return (
+    maps.find((m) => m.ownerId === ownerId) ?? {
+      ownerId,
+      connectedPlayerIds: [],
+      arrows: [],
+      zones: [],
+    }
+  );
 }
 
 function upsertMap(maps: PlayerTacticalMap[], updated: PlayerTacticalMap): PlayerTacticalMap[] {
@@ -156,11 +170,26 @@ export const useMatchLineupStore = create<MatchLineupState>((set, get) => {
       await saveMap(ownerId, { ...current, connectedPlayerIds });
     },
 
-    addZone: async (ownerId, points) => {
+    addArrow: async (ownerId, fromPlayerId, toPlayerId, color) => {
+      const { lineup } = get();
+      if (!lineup || fromPlayerId === toPlayerId) return;
+      const current = getOrCreateMap(lineup.tacticalMaps, ownerId);
+      const arrow = { id: crypto.randomUUID(), fromPlayerId, toPlayerId, color };
+      await saveMap(ownerId, { ...current, arrows: [...current.arrows, arrow] });
+    },
+
+    removeArrow: async (ownerId, arrowId) => {
       const { lineup } = get();
       if (!lineup) return;
       const current = getOrCreateMap(lineup.tacticalMaps, ownerId);
-      const zone = { id: crypto.randomUUID(), points };
+      await saveMap(ownerId, { ...current, arrows: current.arrows.filter((a) => a.id !== arrowId) });
+    },
+
+    addZone: async (ownerId, points, color) => {
+      const { lineup } = get();
+      if (!lineup) return;
+      const current = getOrCreateMap(lineup.tacticalMaps, ownerId);
+      const zone = { id: crypto.randomUUID(), points, color };
       await saveMap(ownerId, { ...current, zones: [...current.zones, zone] });
     },
 

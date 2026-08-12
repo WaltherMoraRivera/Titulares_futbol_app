@@ -6,6 +6,7 @@ import { catmullRomToBezierPath, simplifyPoints } from "@/utils/curve-smoothing"
 
 interface ZoneDrawingLayerProps {
   active: boolean;
+  color: string;
   onComplete: (points: Point[]) => void;
 }
 
@@ -20,7 +21,7 @@ function clamp(value: number, min: number, max: number) {
  * monta (y bloquea gestos) cuando `active` es true. Guarda el trazo crudo
  * en estado local mientras se dibuja y recién al soltar el dedo lo
  * simplifica (Ramer-Douglas-Peucker) y avisa al padre con `onComplete`. */
-export function ZoneDrawingLayer({ active, onComplete }: ZoneDrawingLayerProps) {
+export function ZoneDrawingLayer({ active, color, onComplete }: ZoneDrawingLayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const drawingRef = useRef(false);
   const [draftPoints, setDraftPoints] = useState<Point[]>([]);
@@ -82,7 +83,7 @@ export function ZoneDrawingLayer({ active, onComplete }: ZoneDrawingLayerProps) 
           <path
             d={catmullRomToBezierPath(draftPoints)}
             fill="none"
-            stroke="var(--primary)"
+            stroke={color}
             strokeWidth={1}
             strokeLinecap="round"
             strokeLinejoin="round"
