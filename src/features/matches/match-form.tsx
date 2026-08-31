@@ -71,13 +71,20 @@ export function MatchForm({ open, onOpenChange, match, onSubmit }: MatchFormProp
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="date">Fecha</Label>
-              <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <Input
+                id="date"
+                type="date"
+                lang="es-CL"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="time">Hora</Label>
               <Input
                 id="time"
                 type="time"
+                lang="es-CL"
                 value={kickoffTime}
                 onChange={(e) => setKickoffTime(e.target.value)}
               />
