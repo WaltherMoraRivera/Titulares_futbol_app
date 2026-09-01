@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useMatchesStore } from "@/hooks/use-matches";
 import { useAuthStore } from "@/hooks/use-auth";
 import { MatchForm } from "@/features/matches/match-form";
-import { NotificationOptIn } from "@/features/matches/notification-opt-in";
+import { NotificationSettings } from "@/features/matches/notification-settings";
 import { supabase } from "@/lib/supabase/client";
 import { Match } from "@/types";
 import { ArrowLeft, Plus, KeyRound, CalendarDays, BellRing } from "lucide-react";
@@ -105,7 +105,7 @@ export default function MatchesPage() {
         )}
       </header>
 
-      {teamId && <NotificationOptIn teamId={teamId} />}
+      {teamId && <NotificationSettings teamId={teamId} />}
 
       {loaded && matches.length === 0 && (
         <p className="py-8 text-center text-sm text-muted-foreground">
