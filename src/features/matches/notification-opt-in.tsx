@@ -9,10 +9,12 @@ import { Bell } from "lucide-react";
 const DISMISS_KEY = "titulares:push-opt-in-dismissed";
 
 /** Banner para activar notificaciones push de partidos nuevos. Se muestra
- * solo si el navegador las soporta, el permiso todavía no fue decidido, y
- * el usuario no lo descartó antes en este dispositivo. */
+ * si el navegador las soporta y todavía no hay una suscripción confirmada
+ * (permiso sin decidir, o concedido pero sin guardarse bien la última vez),
+ * salvo que el usuario lo haya descartado antes en este dispositivo. */
 export function NotificationOptIn({ teamId }: { teamId: string }) {
-  const { support, status, subscribing, checked, check, subscribe } = usePushNotificationsStore();
+  const { support, status, subscribed, subscribing, checked, check, subscribe } =
+    usePushNotificationsStore();
   const [dismissed, setDismissed] = useState(true);
 
   useEffect(() => {
@@ -20,7 +22,8 @@ export function NotificationOptIn({ teamId }: { teamId: string }) {
     setDismissed(window.localStorage.getItem(DISMISS_KEY) === "1");
   }, [check]);
 
-  if (!checked || support !== "supported" || status !== "default" || dismissed) return null;
+  if (!checked || support !== "supported" || status === "denied" || dismissed) return null;
+  if (subscribed) return null;
 
   function dismiss() {
     window.localStorage.setItem(DISMISS_KEY, "1");
@@ -30,14 +33,12 @@ export function NotificationOptIn({ teamId }: { teamId: string }) {
   async function handleActivate() {
     try {
       await subscribe(teamId);
-      if (Notification.permission === "granted") {
-        toast.success("Notificaciones activadas.");
-        dismiss();
-      } else {
-        toast.info("No se activaron las notificaciones.");
-      }
-    } catch {
-      toast.error("No se pudieron activar las notificaciones.");
+      toast.success("Notificaciones activadas.");
+      dismiss();
+    } catch (err) {
+      console.error("No se pudo activar la notificación push:", err);
+      const message = err instanceof Error ? err.message : "No se pudieron activar.";
+      toast.error(`No se pudieron activar las notificaciones: ${message}`);
     }
   }
 
@@ -45,10 +46,12 @@ export function NotificationOptIn({ teamId }: { teamId: string }) {
     <div className="mb-4 flex items-center gap-3 rounded-lg border border-dashed bg-muted/40 p-3 text-sm">
       <Bell className="h-4 w-4 shrink-0 text-primary" />
       <p className="flex-1 text-muted-foreground">
-        Activa las notificaciones para enterarte apenas se agende un partido nuevo.
+        {status === "granted"
+          ? "El permiso está concedido pero falta confirmar la suscripción. Vuelve a intentarlo."
+          : "Activa las notificaciones para enterarte apenas se agende un partido nuevo."}
       </p>
       <Button size="sm" variant="outline" onClick={handleActivate} disabled={subscribing}>
-        Activar
+        {status === "granted" ? "Reintentar" : "Activar"}
       </Button>
       <Button size="sm" variant="ghost" onClick={dismiss}>
         Ahora no

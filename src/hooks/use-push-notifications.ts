@@ -7,10 +7,15 @@ type PushStatus = "default" | "granted" | "denied";
 interface PushNotificationsState {
   support: PushSupport;
   status: PushStatus;
+  /** Hay una suscripción del navegador confirmada y guardada para este
+   * dispositivo. Puede ser false con status "granted" si el permiso se
+   * concedió pero el guardado en Supabase falló — en ese caso conviene
+   * dejar reintentar en vez de dar el alta por hecha. */
+  subscribed: boolean;
   subscribing: boolean;
   checked: boolean;
   /** Lee el permiso actual del navegador y si ya existe una suscripción activa. */
-  check: () => void;
+  check: () => Promise<void>;
   /** Pide permiso (si hace falta) y guarda la suscripción para este equipo. */
   subscribe: (teamId: string) => Promise<void>;
   unsubscribe: () => Promise<void>;
@@ -26,17 +31,32 @@ function urlBase64ToUint8Array(base64: string) {
 export const usePushNotificationsStore = create<PushNotificationsState>((set, get) => ({
   support: "unsupported",
   status: "default",
+  subscribed: false,
   subscribing: false,
   checked: false,
 
-  check: () => {
+  check: async () => {
     const supported =
       typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window;
-    set({
-      support: supported ? "supported" : "unsupported",
-      status: supported ? (Notification.permission as PushStatus) : "default",
-      checked: true,
-    });
+    if (!supported) {
+      set({ support: "unsupported", status: "default", subscribed: false, checked: true });
+      return;
+    }
+
+    const status = Notification.permission as PushStatus;
+    set({ support: "supported", status, checked: true });
+    if (status !== "granted") {
+      set({ subscribed: false });
+      return;
+    }
+
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const existing = await registration.pushManager.getSubscription();
+      set({ subscribed: !!existing });
+    } catch {
+      set({ subscribed: false });
+    }
   },
 
   subscribe: async (teamId) => {
@@ -60,6 +80,10 @@ export const usePushNotificationsStore = create<PushNotificationsState>((set, ge
         }));
 
       await savePushSubscription(teamId, subscription);
+      set({ subscribed: true });
+    } catch (err) {
+      set({ subscribed: false });
+      throw err;
     } finally {
       set({ subscribing: false });
     }
@@ -69,6 +93,7 @@ export const usePushNotificationsStore = create<PushNotificationsState>((set, ge
     if (get().support !== "supported") return;
     const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.getSubscription();
+    set({ subscribed: false });
     if (!subscription) return;
     const endpoint = subscription.endpoint;
     await subscription.unsubscribe();
