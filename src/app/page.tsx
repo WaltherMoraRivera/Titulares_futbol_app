@@ -6,7 +6,17 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/hooks/use-auth";
-import { Users, PlayCircle, History, KeyRound, LogOut, CalendarDays, BarChart3 } from "lucide-react";
+import { InstallAppButton } from "@/features/pwa/install-app-button";
+import {
+  Users,
+  PlayCircle,
+  History,
+  KeyRound,
+  LogOut,
+  CalendarDays,
+  BarChart3,
+  UserCircle,
+} from "lucide-react";
 
 const container = {
   hidden: {},
@@ -73,7 +83,7 @@ export default function Home() {
           <Link href="/players">
             <Button className="w-full justify-start" size="lg" variant="outline">
               <Users className="mr-2 h-5 w-5" />
-              Jugadores
+              Ver Plantel de Jugadores
             </Button>
           </Link>
         </motion.div>
@@ -94,6 +104,19 @@ export default function Home() {
               Estadísticas
             </Button>
           </Link>
+        </motion.div>
+
+        <motion.div variants={item}>
+          <Link href="/profile">
+            <Button className="w-full justify-start" size="lg" variant="outline">
+              <UserCircle className="mr-2 h-5 w-5" />
+              Mi perfil
+            </Button>
+          </Link>
+        </motion.div>
+
+        <motion.div variants={item}>
+          <InstallAppButton />
         </motion.div>
       </div>
 
