@@ -49,7 +49,7 @@ export default function Home() {
           width={757}
           height={775}
           priority
-          className="h-auto w-20 sm:w-28"
+          className="h-auto w-40 sm:w-48"
         />
       </motion.div>
 
