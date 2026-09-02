@@ -6,15 +6,25 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/hooks/use-auth";
-import { Users, PlayCircle, History, KeyRound, LogOut, CalendarDays, BarChart3 } from "lucide-react";
+import { InstallAppButton } from "@/features/pwa/install-app-button";
+import {
+  Users,
+  PlayCircle,
+  History,
+  KeyRound,
+  LogOut,
+  CalendarDays,
+  BarChart3,
+  UserCircle,
+} from "lucide-react";
 
 const container = {
   hidden: {},
-  visible: { transition: { staggerChildren: 0.08, delayChildren: 0.1 } },
+  visible: { transition: { staggerChildren: 0.06, delayChildren: 0.06 } },
 };
 
 const item = {
-  hidden: { opacity: 0, y: 12 },
+  hidden: { opacity: 0, y: 8 },
   visible: { opacity: 1, y: 0 },
 };
 
@@ -27,7 +37,7 @@ export default function Home() {
 
   return (
     <motion.div
-      className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-6 p-6"
+      className="mx-auto flex h-dvh w-full max-w-md flex-col justify-center gap-2 p-3"
       initial="hidden"
       animate="visible"
       variants={container}
@@ -39,22 +49,22 @@ export default function Home() {
           width={757}
           height={775}
           priority
-          className="h-auto w-56 sm:w-64"
+          className="h-auto w-40 sm:w-48"
         />
       </motion.div>
 
       <motion.div variants={item} className="text-center">
-        <h1 className="text-2xl font-bold">⚽ TITULARES ⚽</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-lg font-bold">⚽ TITULARES ⚽</h1>
+        <p className="text-xs text-muted-foreground">
           Arma la alineación del equipo en menos de un minuto.
         </p>
       </motion.div>
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1.5">
         <motion.div variants={item}>
           <Link href="/attendance">
             <Button className="w-full justify-start" size="lg">
-              <PlayCircle className="mr-2 h-5 w-5" />
+              <PlayCircle className="mr-1.5 h-4 w-4" />
               Nueva formación
             </Button>
           </Link>
@@ -63,7 +73,7 @@ export default function Home() {
         <motion.div variants={item}>
           <Link href="/matches">
             <Button className="w-full justify-start" size="lg" variant="outline">
-              <CalendarDays className="mr-2 h-5 w-5" />
+              <CalendarDays className="mr-1.5 h-4 w-4" />
               Partidos
             </Button>
           </Link>
@@ -72,8 +82,8 @@ export default function Home() {
         <motion.div variants={item}>
           <Link href="/players">
             <Button className="w-full justify-start" size="lg" variant="outline">
-              <Users className="mr-2 h-5 w-5" />
-              Jugadores
+              <Users className="mr-1.5 h-4 w-4" />
+              Ver Plantel de Jugadores
             </Button>
           </Link>
         </motion.div>
@@ -81,7 +91,7 @@ export default function Home() {
         <motion.div variants={item}>
           <Link href="/history">
             <Button className="w-full justify-start" size="lg" variant="outline">
-              <History className="mr-2 h-5 w-5" />
+              <History className="mr-1.5 h-4 w-4" />
               Historial
             </Button>
           </Link>
@@ -90,14 +100,27 @@ export default function Home() {
         <motion.div variants={item}>
           <Link href="/stats">
             <Button className="w-full justify-start" size="lg" variant="outline">
-              <BarChart3 className="mr-2 h-5 w-5" />
+              <BarChart3 className="mr-1.5 h-4 w-4" />
               Estadísticas
             </Button>
           </Link>
         </motion.div>
+
+        <motion.div variants={item}>
+          <Link href="/profile">
+            <Button className="w-full justify-start" size="lg" variant="outline">
+              <UserCircle className="mr-1.5 h-4 w-4" />
+              Mi perfil
+            </Button>
+          </Link>
+        </motion.div>
+
+        <motion.div variants={item}>
+          <InstallAppButton />
+        </motion.div>
       </div>
 
-      <motion.div variants={item} className="text-center text-sm">
+      <motion.div variants={item} className="text-center text-xs">
         {teamName ? (
           <p className="flex items-center justify-center gap-2 text-muted-foreground">
             Conectado a <span className="font-medium text-foreground">{teamName}</span> ·{" "}
