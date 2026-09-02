@@ -31,6 +31,10 @@ interface PlayerFormProps {
   /** Modo autoedición de un jugador sobre su propio perfil: oculta los
    * campos de administración de plantilla (número, activo). */
   restrictedMode?: boolean;
+  /** Autoregistro de un jugador nuevo (todavía sin fila en la plantilla):
+   * a diferencia de restrictedMode, sí necesita elegir su propio número de
+   * camiseta porque nadie se lo asignó todavía. */
+  selfRegister?: boolean;
 }
 
 const NONE = "__none__";
@@ -58,6 +62,7 @@ export function PlayerForm({
   existingNumbers,
   onSubmit,
   restrictedMode = false,
+  selfRegister = false,
 }: PlayerFormProps) {
   const [name, setName] = useState("");
   const [alias, setAlias] = useState("");
@@ -122,7 +127,13 @@ export function PlayerForm({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {restrictedMode ? "Mi perfil" : player ? "Editar jugador" : "Agregar jugador"}
+            {selfRegister
+              ? "Registrarme como jugador nuevo"
+              : restrictedMode
+                ? "Mi perfil"
+                : player
+                  ? "Editar jugador"
+                  : "Agregar jugador"}
           </DialogTitle>
         </DialogHeader>
 
@@ -160,7 +171,7 @@ export function PlayerForm({
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            {!restrictedMode && (
+            {(!restrictedMode || selfRegister) && (
               <div className="space-y-1.5">
                 <Label htmlFor="number">Número</Label>
                 <Input
@@ -173,7 +184,11 @@ export function PlayerForm({
               </div>
             )}
 
-            <div className={restrictedMode ? "col-span-2 space-y-1.5" : "space-y-1.5"}>
+            <div
+              className={
+                restrictedMode && !selfRegister ? "col-span-2 space-y-1.5" : "space-y-1.5"
+              }
+            >
               <Label>Pie dominante</Label>
               <Select
                 items={FOOT_ITEMS}
@@ -261,7 +276,7 @@ export function PlayerForm({
             Cancelar
           </Button>
           <Button onClick={handleSubmit} disabled={saving}>
-            {player ? "Guardar cambios" : "Agregar jugador"}
+            {player ? "Guardar cambios" : selfRegister ? "Registrarme" : "Agregar jugador"}
           </Button>
         </DialogFooter>
       </DialogContent>

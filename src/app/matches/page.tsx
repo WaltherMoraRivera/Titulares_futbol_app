@@ -3,12 +3,15 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useMatchesStore } from "@/hooks/use-matches";
 import { useAuthStore } from "@/hooks/use-auth";
 import { MatchForm } from "@/features/matches/match-form";
+import { NotificationSettings } from "@/features/matches/notification-settings";
+import { supabase } from "@/lib/supabase/client";
 import { Match } from "@/types";
-import { ArrowLeft, Plus, KeyRound, CalendarDays } from "lucide-react";
+import { ArrowLeft, Plus, KeyRound, CalendarDays, BellRing } from "lucide-react";
 
 function formatDate(dateStr: string) {
   const date = new Date(dateStr + "T00:00:00");
@@ -19,6 +22,34 @@ export default function MatchesPage() {
   const { matches, loaded, load, addMatch } = useMatchesStore();
   const { loaded: authLoaded, teamId, role, load: loadAuth } = useAuthStore();
   const [formOpen, setFormOpen] = useState(false);
+  const [notifyingId, setNotifyingId] = useState<string | null>(null);
+
+  async function notifyMatch(matchId: string) {
+    setNotifyingId(matchId);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error("Sin sesión.");
+
+      const res = await fetch("/api/notify-match", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ matchId }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "No se pudo notificar.");
+
+      if (result.sent === 0 && result.failed === 0) {
+        toast.info("Todavía nadie activó las notificaciones.");
+      } else {
+        toast.success(`Notificación enviada a ${result.sent} dispositivo(s).`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo notificar.");
+    } finally {
+      setNotifyingId(null);
+    }
+  }
 
   useEffect(() => {
     if (!authLoaded) loadAuth();
@@ -74,6 +105,8 @@ export default function MatchesPage() {
         )}
       </header>
 
+      {teamId && <NotificationSettings teamId={teamId} />}
+
       {loaded && matches.length === 0 && (
         <p className="py-8 text-center text-sm text-muted-foreground">
           {isDt
@@ -87,7 +120,13 @@ export default function MatchesPage() {
           <p className="text-xs font-medium text-muted-foreground">Próximos</p>
           <AnimatePresence initial={false}>
             {upcoming.map((match) => (
-              <MatchRow key={match.id} match={match} />
+              <MatchRow
+                key={match.id}
+                match={match}
+                isDt={isDt}
+                notifying={notifyingId === match.id}
+                onNotify={() => notifyMatch(match.id)}
+              />
             ))}
           </AnimatePresence>
         </div>
@@ -115,7 +154,17 @@ export default function MatchesPage() {
   );
 }
 
-function MatchRow({ match }: { match: Match }) {
+function MatchRow({
+  match,
+  isDt,
+  notifying,
+  onNotify,
+}: {
+  match: Match;
+  isDt?: boolean;
+  notifying?: boolean;
+  onNotify?: () => void;
+}) {
   return (
     <motion.div
       layout
@@ -123,10 +172,11 @@ function MatchRow({ match }: { match: Match }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.18 }}
+      className="flex items-center gap-2"
     >
       <Link
         href={`/matches/${match.id}`}
-        className="flex items-center gap-3 rounded-lg border bg-card p-3 transition-colors hover:border-primary"
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-lg border bg-card p-3 transition-colors hover:border-primary"
       >
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
           <CalendarDays className="h-5 w-5" />
@@ -142,6 +192,17 @@ function MatchRow({ match }: { match: Match }) {
           </p>
         </div>
       </Link>
+      {isDt && (
+        <Button
+          size="icon"
+          variant="outline"
+          aria-label="Notificar partido a los jugadores"
+          disabled={notifying}
+          onClick={onNotify}
+        >
+          <BellRing className="h-4 w-4" />
+        </Button>
+      )}
     </motion.div>
   );
 }

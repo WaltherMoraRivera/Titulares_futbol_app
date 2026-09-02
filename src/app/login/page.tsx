@@ -4,14 +4,17 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuthStore, TeamRole } from "@/hooks/use-auth";
+import { usePlayersStore } from "@/hooks/use-players";
 import { supabase } from "@/lib/supabase/client";
 import { getPositionColor } from "@/utils/position-colors";
-import { Position } from "@/types";
-import { ArrowLeft } from "lucide-react";
+import { PlayerForm } from "@/features/players/player-form";
+import { Position, PlayerInput } from "@/types";
+import { ArrowLeft, UserPlus } from "lucide-react";
 
 interface TeamPlayer {
   id: string;
@@ -36,6 +39,8 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [players, setPlayers] = useState<TeamPlayer[]>([]);
   const [loadingPlayers, setLoadingPlayers] = useState(false);
+  const [registerOpen, setRegisterOpen] = useState(false);
+  const { addPlayer } = usePlayersStore();
 
   useEffect(() => {
     if (teamId && role === "dt") setStep("done");
@@ -76,6 +81,23 @@ export default function LoginPage() {
       setStep("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo reclamar el jugador.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleSelfRegister(input: PlayerInput) {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const created = await addPlayer(input);
+      await claimPlayer(created.id);
+      setStep("done");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "No se pudo completar el registro.";
+      setError(message);
+      toast.error(message);
+      throw err;
     } finally {
       setSubmitting(false);
     }
@@ -149,6 +171,15 @@ export default function LoginPage() {
               );
             })}
           </div>
+
+          <button
+            type="button"
+            onClick={() => setRegisterOpen(true)}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed p-3 text-sm text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
+          >
+            <UserPlus className="h-4 w-4" />
+            No estoy en la lista — registrarme como jugador nuevo
+          </button>
         </motion.div>
       )}
 
@@ -167,6 +198,15 @@ export default function LoginPage() {
           </Button>
         </motion.div>
       )}
+
+      <PlayerForm
+        open={registerOpen}
+        onOpenChange={setRegisterOpen}
+        existingNumbers={players.map((p) => p.number)}
+        restrictedMode
+        selfRegister
+        onSubmit={handleSelfRegister}
+      />
     </div>
   );
 }
