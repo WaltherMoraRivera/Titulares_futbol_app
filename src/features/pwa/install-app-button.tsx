@@ -69,7 +69,7 @@ export function InstallAppButton() {
         onClick={handleUpdate}
         disabled={busy}
       >
-        <RefreshCw className="mr-2 h-5 w-5" />
+        <RefreshCw className="mr-1.5 h-4 w-4" />
         Buscar actualizaciones
       </Button>
     );
@@ -83,7 +83,7 @@ export function InstallAppButton() {
       onClick={handleInstall}
       disabled={busy}
     >
-      <Download className="mr-2 h-5 w-5" />
+      <Download className="mr-1.5 h-4 w-4" />
       Instalar app
     </Button>
   );
