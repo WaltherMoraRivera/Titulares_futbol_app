@@ -41,9 +41,9 @@ export default function MatchesPage() {
       if (!res.ok) throw new Error(result.error || "No se pudo notificar.");
 
       if (result.sent === 0 && result.failed === 0) {
-        toast.info("Todavía nadie activó las notificaciones.");
+        toast.info("Nadie con la asistencia pendiente tiene notificaciones activas.");
       } else {
-        toast.success(`Notificación enviada a ${result.sent} dispositivo(s).`);
+        toast.success(`Notificación enviada a ${result.sent} jugador(es) sin confirmar.`);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo notificar.");
