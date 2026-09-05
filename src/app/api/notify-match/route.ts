@@ -14,10 +14,12 @@ function formatDate(dateStr: string) {
   return date.toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" });
 }
 
-/** Envía la notificación de un partido nuevo a todos los dispositivos
- * suscritos del equipo. Solo DT/Capitán/admin pueden dispararla: la
- * autorización se resuelve del lado de la base (RLS), no acá — este
- * endpoint solo actúa con el token de sesión de quien lo llama. */
+/** Envía la notificación de un partido a los dispositivos suscritos del
+ * equipo cuyo jugador todavía no confirmó ni rechazó su asistencia — a
+ * quien ya respondió no le manda otro recordatorio. Solo DT/Capitán/admin
+ * pueden dispararla: la autorización se resuelve del lado de la base
+ * (RLS), no acá — este endpoint solo actúa con el token de sesión de quien
+ * lo llama. */
 export async function POST(request: NextRequest) {
   if (!vapidPublicKey || !vapidPrivateKey || !vapidSubject) {
     return NextResponse.json(
@@ -53,7 +55,7 @@ export async function POST(request: NextRequest) {
 
   const { data: subscriptions, error: subsError } = await supabase
     .from("push_subscriptions")
-    .select("id, endpoint, p256dh, auth_key")
+    .select("id, user_id, endpoint, p256dh, auth_key")
     .eq("team_id", match.team_id);
   if (subsError) {
     // Si la policy de RLS bloquea la lectura, es porque quien llama no es DT/admin.
@@ -61,6 +63,40 @@ export async function POST(request: NextRequest) {
   }
 
   if (!subscriptions || subscriptions.length === 0) {
+    return NextResponse.json({ sent: 0, failed: 0 });
+  }
+
+  // Solo avisar a quien todavía no confirmó ni rechazó su asistencia a este
+  // partido — a quien ya respondió no le sirve otro recordatorio.
+  const { data: profiles, error: profilesError } = await supabase
+    .from("profiles")
+    .select("id, player_id")
+    .eq("team_id", match.team_id);
+  if (profilesError) {
+    return NextResponse.json({ error: "No se pudo leer la plantilla." }, { status: 500 });
+  }
+
+  const { data: attendance, error: attendanceError } = await supabase
+    .from("match_attendance")
+    .select("player_id, status")
+    .eq("match_id", matchId);
+  if (attendanceError) {
+    return NextResponse.json({ error: "No se pudo leer la asistencia." }, { status: 500 });
+  }
+
+  const playerIdByUserId = new Map((profiles ?? []).map((p) => [p.id, p.player_id]));
+  const respondedPlayerIds = new Set(
+    (attendance ?? [])
+      .filter((a) => a.status === "confirmed" || a.status === "declined")
+      .map((a) => a.player_id)
+  );
+
+  const pendingSubscriptions = subscriptions.filter((sub) => {
+    const playerId = playerIdByUserId.get(sub.user_id);
+    return !!playerId && !respondedPlayerIds.has(playerId);
+  });
+
+  if (pendingSubscriptions.length === 0) {
     return NextResponse.json({ sent: 0, failed: 0 });
   }
 
@@ -77,7 +113,7 @@ export async function POST(request: NextRequest) {
   let failed = 0;
 
   await Promise.all(
-    subscriptions.map(async (sub) => {
+    pendingSubscriptions.map(async (sub) => {
       try {
         await webpush.sendNotification(
           {
