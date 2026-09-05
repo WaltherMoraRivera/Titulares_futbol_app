@@ -1,15 +1,19 @@
 import { create } from "zustand";
-import { Match, MatchInput } from "@/types";
+import { Match, MatchInput, MatchResult } from "@/types";
 import {
   createTeamMatch,
   deleteTeamMatch,
   fetchTeamMatches,
+  fetchTeamMatchResults,
   updateTeamMatch,
 } from "@/services/supabase-match-service";
 import { useAuthStore } from "@/hooks/use-auth";
 
 interface MatchesState {
   matches: Match[];
+  /** Resultados ya cargados (solo existe fila para los partidos que el DT
+   * marcó como terminados con marcador). */
+  results: MatchResult[];
   loaded: boolean;
   load: () => Promise<void>;
   addMatch: (input: MatchInput) => Promise<Match>;
@@ -29,6 +33,7 @@ async function requireTeamId(): Promise<string> {
 
 export const useMatchesStore = create<MatchesState>((set, get) => ({
   matches: [],
+  results: [],
   loaded: false,
 
   load: async () => {
@@ -38,11 +43,14 @@ export const useMatchesStore = create<MatchesState>((set, get) => ({
       auth = useAuthStore.getState();
     }
     if (!auth.teamId) {
-      set({ matches: [], loaded: true });
+      set({ matches: [], results: [], loaded: true });
       return;
     }
-    const matches = await fetchTeamMatches(auth.teamId);
-    set({ matches, loaded: true });
+    const [matches, results] = await Promise.all([
+      fetchTeamMatches(auth.teamId),
+      fetchTeamMatchResults(auth.teamId),
+    ]);
+    set({ matches, results, loaded: true });
   },
 
   addMatch: async (input) => {
