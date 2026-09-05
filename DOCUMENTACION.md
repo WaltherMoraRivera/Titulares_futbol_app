@@ -9,7 +9,7 @@ Aplicación web para armar la formación de un equipo de fútbol amateur en meno
 | | |
 |---|---|
 | **Nombre** | TITULARES |
-| **Equipo / marca** | Las Condes FC (Decom) |
+| **Equipo / marca** | Decom FC (antes "Las Condes FC" — renombrado en la base para no confundirse con un equipo rival real que usa ese mismo nombre) |
 | **Objetivo** | Que el capitán arme la alineación del partido en menos de 1 minuto desde el celular |
 | **Flujo principal** | Asistencia → Elegir formación → Arrastrar jugadores → Compartir |
 | **Persistencia** | Local Storage (vía capa de abstracción, migrable a backend) |
@@ -224,6 +224,7 @@ interface MatchLineup {
 - Contador en vivo de "X confirmados de Y" en la parte superior.
 - Igual que en jugadores, la restricción de UI es una comodidad — las policies de RLS (`attendance_upsert_own_or_dt`, `matches_write_dt`) son las que realmente bloquean del lado del servidor.
 - Usa las tablas `matches` y `match_attendance` ya creadas en la Fase 0 (`0001_init.sql`); no hizo falta ninguna migración nueva.
+- **Marcador en la lista**: cada partido de "Pasados" que ya tiene un resultado cargado (Fase 4, `match_results`) muestra debajo del rival una línea `EQUIPO 0 - 3 RIVAL` — nombres en mayúsculas, marcador coloreado según el resultado (verde ganado, rojo perdido, gris empate). Reutiliza `fetchTeamMatchResults` (ya existía, usado en `/stats`) cargándolo junto con los partidos; no requirió tabla ni migración nueva.
 
 Todavía no conectado con el constructor de formación (`/board`): agendar un partido y armar su alineación son, por ahora, dos flujos separados. Esa conexión es la Fase 3 ("vista del jugador").
 
@@ -496,7 +497,7 @@ Probado de punta a punta: login con código de jugador, listado de plantilla, re
 
 **Estado:** login, reclamo de jugador, gestión de la plantilla (`/players`), partidos agendados con asistencia anticipada (`/matches`, Fase 2), formación + instrucciones tácticas por partido (`/matches/[id]/board`, Fase 3), resultado post-partido con goleadores y tarjetas (`/matches/[id]/result`, Fase 4), estadísticas de temporada (`/stats`, Fase 5), zonas de influencia visuales sobre la cancha (Fase 6), pizarra táctica en dos vistas —formación general del equipo y mapa táctico individual por jugador con compañeros curados (seleccionados tocando la cancha), flechas y zonas libres con color (verde/rojo) y deshacer— (Fase 7) **y una cuenta admin con switcher de vista para pruebas** funcionando en producción real contra Supabase, con permisos por rol probados de punta a punta (edición propia para jugador, control total para DT/capitán, verificado también que las políticas de RLS bloquean del lado del servidor, no solo en la interfaz). El flujo local original (`/attendance` → `/formation` → `/board` → `/history`) sigue vivo aparte, sin migrar a Supabase, como atajo rápido del DT para armar una formación suelta sin agendar un partido.
 
-**Códigos de equipo (Las Condes FC):** jugador `CONDESFC-JUGADOR` · DT/Capitán `CONDESFC-CAPITAN` · admin (pruebas, switcher de vista) `CONDESFC-ADMIN`.
+**Códigos de equipo (Decom FC, antes "Las Condes FC" — los códigos en sí no cambiaron):** jugador `CONDESFC-JUGADOR` · DT/Capitán `CONDESFC-CAPITAN` · admin (pruebas, switcher de vista) `CONDESFC-ADMIN`.
 
 ### Repositorio y paquete Android
 

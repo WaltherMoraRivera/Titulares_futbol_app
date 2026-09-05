@@ -246,7 +246,7 @@ function ScoreLine({
 
   return (
     <p className="mt-1.5 flex items-center gap-1.5 text-sm">
-      <span className="min-w-0 truncate font-medium">{teamName ?? "Nuestro equipo"}</span>
+      <span className="min-w-0 truncate font-medium uppercase">{teamName ?? "Nuestro equipo"}</span>
       <span
         className={cn(
           "shrink-0 rounded px-1.5 py-0.5 font-mono text-xs font-bold",
@@ -257,7 +257,7 @@ function ScoreLine({
       >
         {teamScore} - {opponentScore}
       </span>
-      <span className="min-w-0 truncate font-medium">{opponent ?? "Rival"}</span>
+      <span className="min-w-0 truncate font-medium uppercase">{opponent ?? "Rival"}</span>
     </p>
   );
 }
