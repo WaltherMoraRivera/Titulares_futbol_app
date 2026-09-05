@@ -10,7 +10,8 @@ import { useAuthStore } from "@/hooks/use-auth";
 import { MatchForm } from "@/features/matches/match-form";
 import { NotificationSettings } from "@/features/matches/notification-settings";
 import { supabase } from "@/lib/supabase/client";
-import { Match } from "@/types";
+import { cn } from "@/lib/utils";
+import { Match, MatchResult } from "@/types";
 import { ArrowLeft, Plus, KeyRound, CalendarDays, BellRing } from "lucide-react";
 
 function formatDate(dateStr: string) {
@@ -19,8 +20,8 @@ function formatDate(dateStr: string) {
 }
 
 export default function MatchesPage() {
-  const { matches, loaded, load, addMatch } = useMatchesStore();
-  const { loaded: authLoaded, teamId, role, load: loadAuth } = useAuthStore();
+  const { matches, results, loaded, load, addMatch } = useMatchesStore();
+  const { loaded: authLoaded, teamId, teamName, role, load: loadAuth } = useAuthStore();
   const [formOpen, setFormOpen] = useState(false);
   const [notifyingId, setNotifyingId] = useState<string | null>(null);
 
@@ -71,6 +72,11 @@ export default function MatchesPage() {
     past.reverse();
     return { upcoming, past };
   }, [matches, todayStr]);
+
+  const resultsByMatchId = useMemo(
+    () => new Map(results.map((r) => [r.matchId, r])),
+    [results]
+  );
 
   if (authLoaded && !teamId) {
     return (
@@ -137,7 +143,12 @@ export default function MatchesPage() {
           <p className="text-xs font-medium text-muted-foreground">Pasados</p>
           <AnimatePresence initial={false}>
             {past.map((match) => (
-              <MatchRow key={match.id} match={match} />
+              <MatchRow
+                key={match.id}
+                match={match}
+                result={resultsByMatchId.get(match.id)}
+                teamName={teamName}
+              />
             ))}
           </AnimatePresence>
         </div>
@@ -159,11 +170,15 @@ function MatchRow({
   isDt,
   notifying,
   onNotify,
+  result,
+  teamName,
 }: {
   match: Match;
   isDt?: boolean;
   notifying?: boolean;
   onNotify?: () => void;
+  result?: MatchResult;
+  teamName?: string | null;
 }) {
   return (
     <motion.div
@@ -190,6 +205,14 @@ function MatchRow({
             {match.opponent ? `vs ${match.opponent}` : "Rival por definir"}
             {match.location ? ` · ${match.location}` : ""}
           </p>
+          {result && (
+            <ScoreLine
+              teamName={teamName}
+              opponent={match.opponent}
+              teamScore={result.teamScore}
+              opponentScore={result.opponentScore}
+            />
+          )}
         </div>
       </Link>
       {isDt && (
@@ -204,5 +227,37 @@ function MatchRow({
         </Button>
       )}
     </motion.div>
+  );
+}
+
+function ScoreLine({
+  teamName,
+  opponent,
+  teamScore,
+  opponentScore,
+}: {
+  teamName?: string | null;
+  opponent?: string;
+  teamScore: number;
+  opponentScore: number;
+}) {
+  const outcome =
+    teamScore > opponentScore ? "win" : teamScore < opponentScore ? "loss" : "draw";
+
+  return (
+    <p className="mt-1.5 flex items-center gap-1.5 text-sm">
+      <span className="min-w-0 truncate font-medium uppercase">{teamName ?? "Nuestro equipo"}</span>
+      <span
+        className={cn(
+          "shrink-0 rounded px-1.5 py-0.5 font-mono text-xs font-bold",
+          outcome === "win" && "bg-emerald-500/15 text-emerald-500",
+          outcome === "loss" && "bg-destructive/15 text-destructive",
+          outcome === "draw" && "bg-muted text-muted-foreground"
+        )}
+      >
+        {teamScore} - {opponentScore}
+      </span>
+      <span className="min-w-0 truncate font-medium uppercase">{opponent ?? "Rival"}</span>
+    </p>
   );
 }
