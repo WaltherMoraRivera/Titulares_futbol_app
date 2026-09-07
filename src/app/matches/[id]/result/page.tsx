@@ -4,42 +4,33 @@ import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useAuthStore } from "@/hooks/use-auth";
 import { usePlayersStore } from "@/hooks/use-players";
 import { useMatchesStore } from "@/hooks/use-matches";
-import {
-  addMatchCard,
-  addMatchGoal,
-  fetchMatchCards,
-  fetchMatchGoals,
-  fetchMatchResult,
-  removeMatchCard,
-  removeMatchGoal,
-  saveMatchResult,
-} from "@/services/supabase-match-service";
+import { useMatchEvents } from "@/hooks/use-match-events";
+import { fetchMatchResult, saveMatchResult } from "@/services/supabase-match-service";
+import { computeScoreFromEvents } from "@/utils/match-score";
 import { getDisplayName } from "@/utils/player-display";
-import { CardType, MatchCard, MatchGoal, MatchResult } from "@/types";
-import { ArrowLeft, X } from "lucide-react";
+import { EventParticipant, MatchResult, Player } from "@/types";
+import { ArrowLeft } from "lucide-react";
 
-const CARD_LABELS: Record<CardType, string> = {
-  yellow: "Amarilla",
-  red: "Roja",
-};
-
-const CARD_STYLES: Record<CardType, string> = {
-  yellow: "bg-yellow-500/20 text-yellow-600",
-  red: "bg-destructive/15 text-destructive",
-};
+function formatParticipant(
+  participant: EventParticipant | undefined,
+  playersById: Map<string, Player>
+): string {
+  if (!participant) return "";
+  if (participant.playerId) {
+    const player = playersById.get(participant.playerId);
+    return player ? getDisplayName(player) : "Jugador";
+  }
+  if (participant.number != null && participant.name?.trim()) {
+    return `#${participant.number} ${participant.name.trim()}`;
+  }
+  if (participant.number != null) return `#${participant.number}`;
+  return participant.name?.trim() ?? "";
+}
 
 export default function MatchResultPage({
   params,
@@ -48,28 +39,15 @@ export default function MatchResultPage({
 }) {
   const { id } = use(params);
 
-  const { loaded: authLoaded, teamId, role, load: loadAuth } = useAuthStore();
+  const { loaded: authLoaded, teamId, teamName, role, load: loadAuth } = useAuthStore();
   const { players, loaded: playersLoaded, load: loadPlayers } = usePlayersStore();
   const { matches, loaded: matchesLoaded, load: loadMatches } = useMatchesStore();
+  const { events, loaded: eventsLoaded } = useMatchEvents(id);
 
   const [result, setResult] = useState<MatchResult | null>(null);
-  const [goals, setGoals] = useState<MatchGoal[]>([]);
-  const [cards, setCards] = useState<MatchCard[]>([]);
-  const [dataLoaded, setDataLoaded] = useState(false);
-
-  const [teamScore, setTeamScore] = useState("0");
-  const [opponentScore, setOpponentScore] = useState("0");
+  const [resultLoaded, setResultLoaded] = useState(false);
   const [notes, setNotes] = useState("");
-  const [savingResult, setSavingResult] = useState(false);
-
-  const [goalPlayerId, setGoalPlayerId] = useState("");
-  const [goalMinute, setGoalMinute] = useState("");
-  const [addingGoal, setAddingGoal] = useState(false);
-
-  const [cardPlayerId, setCardPlayerId] = useState("");
-  const [cardType, setCardType] = useState<CardType>("yellow");
-  const [cardMinute, setCardMinute] = useState("");
-  const [addingCard, setAddingCard] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const isDt = role === "dt";
   const match = matches.find((m) => m.id === id);
@@ -87,91 +65,32 @@ export default function MatchResultPage({
 
   useEffect(() => {
     if (!authLoaded || !teamId) return;
-    Promise.all([fetchMatchResult(id), fetchMatchGoals(id), fetchMatchCards(id)]).then(
-      ([resultData, goalsData, cardsData]) => {
-        setResult(resultData);
-        setGoals(goalsData);
-        setCards(cardsData);
-        setTeamScore(String(resultData?.teamScore ?? 0));
-        setOpponentScore(String(resultData?.opponentScore ?? 0));
-        setNotes(resultData?.notes ?? "");
-        setDataLoaded(true);
-      }
-    );
+    fetchMatchResult(id).then((data) => {
+      setResult(data);
+      setNotes(data?.notes ?? "");
+      setResultLoaded(true);
+    });
   }, [authLoaded, teamId, id]);
 
   const playersById = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
-  const playerItems = useMemo(
-    () => Object.fromEntries(players.map((p) => [p.id, getDisplayName(p)])),
-    [players]
-  );
+  const { teamScore, opponentScore } = useMemo(() => computeScoreFromEvents(events), [events]);
 
-  async function handleSaveResult() {
+  async function handleFinish() {
     if (!teamId) return;
-    setSavingResult(true);
+    setSaving(true);
     try {
-      const updated = await saveMatchResult(
-        teamId,
-        id,
-        Number(teamScore) || 0,
-        Number(opponentScore) || 0,
-        notes
-      );
+      const updated = await saveMatchResult(teamId, id, teamScore, opponentScore, notes);
       setResult(updated);
-      toast.success("Resultado guardado");
+      toast.success("Resultado guardado.");
     } catch (err) {
       console.error(err);
       toast.error("No se pudo guardar el resultado.");
     } finally {
-      setSavingResult(false);
+      setSaving(false);
     }
   }
 
-  async function handleAddGoal() {
-    if (!teamId || !goalPlayerId) return;
-    setAddingGoal(true);
-    try {
-      const minute = goalMinute.trim() ? Number(goalMinute) : undefined;
-      const goal = await addMatchGoal(teamId, id, goalPlayerId, minute);
-      setGoals((prev) => [...prev, goal]);
-      setGoalPlayerId("");
-      setGoalMinute("");
-    } catch (err) {
-      console.error(err);
-      toast.error("No se pudo agregar el gol.");
-    } finally {
-      setAddingGoal(false);
-    }
-  }
-
-  async function handleRemoveGoal(goalId: string) {
-    await removeMatchGoal(goalId);
-    setGoals((prev) => prev.filter((g) => g.id !== goalId));
-  }
-
-  async function handleAddCard() {
-    if (!teamId || !cardPlayerId) return;
-    setAddingCard(true);
-    try {
-      const minute = cardMinute.trim() ? Number(cardMinute) : undefined;
-      const card = await addMatchCard(teamId, id, cardPlayerId, cardType, minute);
-      setCards((prev) => [...prev, card]);
-      setCardPlayerId("");
-      setCardMinute("");
-    } catch (err) {
-      console.error(err);
-      toast.error("No se pudo agregar la tarjeta.");
-    } finally {
-      setAddingCard(false);
-    }
-  }
-
-  async function handleRemoveCard(cardId: string) {
-    await removeMatchCard(cardId);
-    setCards((prev) => prev.filter((c) => c.id !== cardId));
-  }
-
-  const loading = !authLoaded || !playersLoaded || !matchesLoaded || !dataLoaded;
+  const loading = !authLoaded || !playersLoaded || !matchesLoaded || !resultLoaded || !eventsLoaded;
 
   if (authLoaded && !teamId) {
     return (
@@ -210,54 +129,28 @@ export default function MatchResultPage({
         </h1>
       </header>
 
-      {!loading && !isDt && !result && (
+      {!loading && !isDt && events.length === 0 && !result && (
         <p className="py-8 text-center text-sm text-muted-foreground">
-          El DT todavía no cargó el resultado de este partido.
+          El DT todavía no cargó nada de este partido.
         </p>
       )}
 
-      {!loading && (isDt || result) && (
+      {!loading && (isDt || result || events.length > 0) && (
         <>
-          <section className="mb-6 rounded-xl border bg-card p-4">
-            <p className="mb-3 text-sm font-semibold text-muted-foreground">Resultado</p>
-            {isDt ? (
-              <div className="flex items-center justify-center gap-3">
-                <div className="flex flex-col items-center gap-1">
-                  <Label htmlFor="teamScore" className="text-xs">
-                    Las Condes FC
-                  </Label>
-                  <Input
-                    id="teamScore"
-                    type="number"
-                    inputMode="numeric"
-                    className="w-16 text-center"
-                    value={teamScore}
-                    onChange={(e) => setTeamScore(e.target.value)}
-                  />
-                </div>
-                <span className="mt-5 text-lg font-bold">—</span>
-                <div className="flex flex-col items-center gap-1">
-                  <Label htmlFor="opponentScore" className="text-xs">
-                    {match?.opponent || "Rival"}
-                  </Label>
-                  <Input
-                    id="opponentScore"
-                    type="number"
-                    inputMode="numeric"
-                    className="w-16 text-center"
-                    value={opponentScore}
-                    onChange={(e) => setOpponentScore(e.target.value)}
-                  />
-                </div>
-              </div>
-            ) : (
-              <p className="text-center text-2xl font-bold">
-                {result?.teamScore} — {result?.opponentScore}
-              </p>
-            )}
+          <section className="mb-6 rounded-xl border bg-card p-4 text-center">
+            <p className="mb-2 text-xs font-medium text-muted-foreground">
+              {result ? "Resultado final" : "Marcador en curso — todavía sin finalizar"}
+            </p>
+            <p className="text-2xl font-bold uppercase">
+              {teamName ?? "Nuestro equipo"} {teamScore} — {opponentScore}{" "}
+              {match?.opponent || "Rival"}
+            </p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Se carga desde la pestaña &quot;En vivo&quot; del partido.
+            </p>
 
             {isDt && (
-              <div className="mt-4 space-y-1.5">
+              <div className="mt-4 space-y-1.5 text-left">
                 <Label htmlFor="notes">Notas del DT (opcional)</Label>
                 <Textarea
                   id="notes"
@@ -269,175 +162,67 @@ export default function MatchResultPage({
               </div>
             )}
             {!isDt && result?.notes?.trim() && (
-              <p className="mt-4 rounded-md border bg-muted/50 p-2 text-sm">{result.notes}</p>
+              <p className="mt-4 rounded-md border bg-muted/50 p-2 text-left text-sm">
+                {result.notes}
+              </p>
             )}
 
             {isDt && (
-              <Button className="mt-4 w-full" onClick={handleSaveResult} disabled={savingResult}>
-                Guardar resultado
+              <Button className="mt-4 w-full" onClick={handleFinish} disabled={saving}>
+                {result ? "Actualizar resultado final" : "Marcar como finalizado"}
               </Button>
             )}
           </section>
 
           <section className="mb-6">
             <p className="mb-2 text-sm font-semibold text-muted-foreground">
-              Goleadores {goals.length > 0 ? `(${goals.length})` : ""}
+              Goleadores {teamScore + opponentScore > 0 ? `(${teamScore + opponentScore})` : ""}
             </p>
-            {goals.length === 0 && (
+            {teamScore + opponentScore === 0 ? (
               <p className="text-sm text-muted-foreground">Sin goles registrados.</p>
-            )}
-            <div className="space-y-2">
-              {goals.map((goal) => {
-                const player = playersById.get(goal.playerId);
-                return (
-                  <div
-                    key={goal.id}
-                    className="flex items-center gap-2 rounded-lg border bg-card p-2.5"
-                  >
-                    <p className="min-w-0 flex-1 truncate text-sm font-medium">
-                      {player ? getDisplayName(player) : "Jugador"}
-                      {goal.minute !== undefined ? ` · ${goal.minute}'` : ""}
-                    </p>
-                    {isDt && (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        aria-label="Quitar gol"
-                        onClick={() => handleRemoveGoal(goal.id)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {isDt && (
-              <div className="mt-3 flex items-end gap-2">
-                <div className="flex-1 space-y-1.5">
-                  <Label>Jugador</Label>
-                  <Select
-                    items={playerItems}
-                    value={goalPlayerId}
-                    onValueChange={(v) => setGoalPlayerId(v ?? "")}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Elegir" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {players.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {getDisplayName(p)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="w-16 space-y-1.5">
-                  <Label>Min.</Label>
-                  <Input
-                    type="number"
-                    inputMode="numeric"
-                    value={goalMinute}
-                    onChange={(e) => setGoalMinute(e.target.value)}
-                  />
-                </div>
-                <Button onClick={handleAddGoal} disabled={!goalPlayerId || addingGoal}>
-                  Agregar
-                </Button>
+            ) : (
+              <div className="space-y-2">
+                {events
+                  .filter((e) => e.type === "goal")
+                  .map((goal) => (
+                    <div
+                      key={goal.id}
+                      className="flex items-center gap-2 rounded-lg border bg-card p-2.5"
+                    >
+                      <span className="text-sm">⚽</span>
+                      <p className="min-w-0 flex-1 truncate text-sm font-medium">
+                        {formatParticipant(goal.player, playersById) || "?"}
+                        {goal.minute != null ? ` · ${goal.minute}'` : ""}
+                        {goal.side === "rival" ? ` (${match?.opponent || "Rival"})` : ""}
+                      </p>
+                    </div>
+                  ))}
               </div>
             )}
           </section>
 
           <section>
-            <p className="mb-2 text-sm font-semibold text-muted-foreground">
-              Tarjetas {cards.length > 0 ? `(${cards.length})` : ""}
-            </p>
-            {cards.length === 0 && (
+            <p className="mb-2 text-sm font-semibold text-muted-foreground">Tarjetas</p>
+            {events.filter((e) => e.type === "yellow_card" || e.type === "red_card").length ===
+            0 ? (
               <p className="text-sm text-muted-foreground">Sin tarjetas registradas.</p>
-            )}
-            <div className="space-y-2">
-              {cards.map((card) => {
-                const player = playersById.get(card.playerId);
-                return (
-                  <div
-                    key={card.id}
-                    className="flex items-center gap-2 rounded-lg border bg-card p-2.5"
-                  >
-                    <span
-                      className={`shrink-0 rounded px-2 py-1 text-xs font-medium ${CARD_STYLES[card.cardType]}`}
+            ) : (
+              <div className="space-y-2">
+                {events
+                  .filter((e) => e.type === "yellow_card" || e.type === "red_card")
+                  .map((card) => (
+                    <div
+                      key={card.id}
+                      className="flex items-center gap-2 rounded-lg border bg-card p-2.5"
                     >
-                      {CARD_LABELS[card.cardType]}
-                    </span>
-                    <p className="min-w-0 flex-1 truncate text-sm font-medium">
-                      {player ? getDisplayName(player) : "Jugador"}
-                      {card.minute !== undefined ? ` · ${card.minute}'` : ""}
-                    </p>
-                    {isDt && (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        aria-label="Quitar tarjeta"
-                        onClick={() => handleRemoveCard(card.id)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {isDt && (
-              <div className="mt-3 flex items-end gap-2">
-                <div className="flex-1 space-y-1.5">
-                  <Label>Jugador</Label>
-                  <Select
-                    items={playerItems}
-                    value={cardPlayerId}
-                    onValueChange={(v) => setCardPlayerId(v ?? "")}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Elegir" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {players.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {getDisplayName(p)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="w-24 space-y-1.5">
-                  <Label>Tipo</Label>
-                  <Select
-                    items={CARD_LABELS}
-                    value={cardType}
-                    onValueChange={(v) => setCardType((v as CardType) ?? "yellow")}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="yellow">Amarilla</SelectItem>
-                      <SelectItem value="red">Roja</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="w-16 space-y-1.5">
-                  <Label>Min.</Label>
-                  <Input
-                    type="number"
-                    inputMode="numeric"
-                    value={cardMinute}
-                    onChange={(e) => setCardMinute(e.target.value)}
-                  />
-                </div>
-                <Button onClick={handleAddCard} disabled={!cardPlayerId || addingCard}>
-                  Agregar
-                </Button>
+                      <span className="text-sm">{card.type === "yellow_card" ? "🟨" : "🟥"}</span>
+                      <p className="min-w-0 flex-1 truncate text-sm font-medium">
+                        {formatParticipant(card.player, playersById) || "?"}
+                        {card.minute != null ? ` · ${card.minute}'` : ""}
+                        {card.side === "rival" ? ` (${match?.opponent || "Rival"})` : ""}
+                      </p>
+                    </div>
+                  ))}
               </div>
             )}
           </section>

@@ -4,10 +4,12 @@ import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useAuthStore } from "@/hooks/use-auth";
 import { usePlayersStore } from "@/hooks/use-players";
 import { useMatchesStore } from "@/hooks/use-matches";
 import { MatchForm } from "@/features/matches/match-form";
+import { LiveMatchPanel } from "@/features/matches/live-match-panel";
 import {
   fetchMatchAttendance,
   setAttendance,
@@ -37,10 +39,16 @@ export default function MatchDetailPage({
   const { id } = use(params);
   const router = useRouter();
 
-  const { loaded: authLoaded, teamId, role, playerId, load: loadAuth } = useAuthStore();
+  const { loaded: authLoaded, teamId, teamName, role, playerId, load: loadAuth } = useAuthStore();
   const { players, loaded: playersLoaded, load: loadPlayers } = usePlayersStore();
-  const { matches, loaded: matchesLoaded, load: loadMatches, updateMatch, removeMatch } =
-    useMatchesStore();
+  const {
+    matches,
+    results,
+    loaded: matchesLoaded,
+    load: loadMatches,
+    updateMatch,
+    removeMatch,
+  } = useMatchesStore();
 
   const [attendance, setAttendanceList] = useState<MatchAttendance[]>([]);
   const [attendanceLoaded, setAttendanceLoaded] = useState(false);
@@ -167,62 +175,90 @@ export default function MatchDetailPage({
           <Link href={`/matches/${id}/result`} className="mb-4 block">
             <Button variant="outline" className="w-full justify-start">
               <Trophy className="mr-2 h-4 w-4" />
-              {isDt ? "Cargar resultado" : "Ver resultado"}
+              Ver resumen del resultado
             </Button>
           </Link>
 
-          <div className="space-y-2">
-            {players.map((player) => {
-              const status = statusByPlayer.get(player.id) ?? "pending";
-              const isSelf = player.id === playerId;
-              const canEdit = isDt || isSelf;
-              const color = player.color ?? getPositionColor(player.primaryPosition);
+          <Tabs defaultValue="live">
+            <TabsList className="mb-3 w-full">
+              <TabsTrigger value="live" className="flex-1">
+                En vivo
+              </TabsTrigger>
+              <TabsTrigger value="attendance" className="flex-1">
+                Asistencia
+              </TabsTrigger>
+            </TabsList>
 
-              return (
-                <div
-                  key={player.id}
-                  className="flex items-center gap-3 rounded-lg border bg-card p-3"
-                >
-                  <div
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
-                    style={{ backgroundColor: color }}
-                  >
-                    {player.number}
-                  </div>
-                  <p className="min-w-0 flex-1 truncate font-medium">{getDisplayName(player)}</p>
+            <TabsContent value="live">
+              {teamId && (
+                <LiveMatchPanel
+                  match={match}
+                  teamId={teamId}
+                  teamName={teamName}
+                  isDt={isDt}
+                  players={players}
+                  isFinished={results.some((r) => r.matchId === id)}
+                />
+              )}
+            </TabsContent>
 
-                  {canEdit ? (
-                    <div className="flex shrink-0 gap-1">
-                      <Button
-                        size="icon"
-                        variant={status === "confirmed" ? "default" : "outline"}
-                        aria-label={`Confirmar asistencia de ${player.name}`}
-                        disabled={savingPlayerId === player.id}
-                        onClick={() => handleSetStatus(player.id, "confirmed")}
-                      >
-                        <Check className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant={status === "declined" ? "destructive" : "outline"}
-                        aria-label={`Marcar que ${player.name} no va`}
-                        disabled={savingPlayerId === player.id}
-                        onClick={() => handleSetStatus(player.id, "declined")}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <span
-                      className={`shrink-0 rounded px-2 py-1 text-xs font-medium ${STATUS_STYLES[status]}`}
+            <TabsContent value="attendance">
+              <div className="space-y-2">
+                {players.map((player) => {
+                  const status = statusByPlayer.get(player.id) ?? "pending";
+                  const isSelf = player.id === playerId;
+                  const canEdit = isDt || isSelf;
+                  const color = player.color ?? getPositionColor(player.primaryPosition);
+
+                  return (
+                    <div
+                      key={player.id}
+                      className="flex items-center gap-3 rounded-lg border bg-card p-3"
                     >
-                      {STATUS_LABELS[status]}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                      <div
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
+                        style={{ backgroundColor: color }}
+                      >
+                        {player.number}
+                      </div>
+                      <p className="min-w-0 flex-1 truncate font-medium">
+                        {getDisplayName(player)}
+                      </p>
+
+                      {canEdit ? (
+                        <div className="flex shrink-0 gap-1">
+                          <Button
+                            size="icon"
+                            variant={status === "confirmed" ? "default" : "outline"}
+                            aria-label={`Confirmar asistencia de ${player.name}`}
+                            disabled={savingPlayerId === player.id}
+                            onClick={() => handleSetStatus(player.id, "confirmed")}
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant={status === "declined" ? "destructive" : "outline"}
+                            aria-label={`Marcar que ${player.name} no va`}
+                            disabled={savingPlayerId === player.id}
+                            onClick={() => handleSetStatus(player.id, "declined")}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <span
+                          className={`shrink-0 rounded px-2 py-1 text-xs font-medium ${STATUS_STYLES[status]}`}
+                        >
+                          {STATUS_LABELS[status]}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </TabsContent>
+          </Tabs>
         </>
       )}
 

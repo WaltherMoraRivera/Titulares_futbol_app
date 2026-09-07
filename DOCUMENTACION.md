@@ -241,23 +241,21 @@ Todavía no conectado con el constructor de formación (`/board`): agendar un pa
 - El botón "Compartir" genera la imagen (mismo `ExportView`/`captureElementAsBlob` de `/board`) usando directamente la fecha/rival/hora ya guardados en el partido, sin volver a pedirlos como en `/board` (ahí sí hace falta el diálogo, porque esos datos no existen todavía).
 - Probado de punta a punta contra Supabase real: DT arma un 4-3-3 con asistentes confirmados, agrega instrucciones a un jugador, manda a otro a la banca, comparte/descarga la imagen; un jugador logueado ve la misma formación en modo solo lectura, sin poder arrastrar ni editar.
 
-### 5.10 Resultado post-partido (`/matches/[id]/result`) — Fase 4
+### 5.10 Resultado post-partido (`/matches/[id]/result`) — Fase 4 (reestructurada en Fase 8, ver 5.13)
 
-- Registra el resultado final de un partido agendado: marcador propio/rival, goleadores (jugador + minuto opcional) y tarjetas (jugador + amarilla/roja + minuto opcional), más notas libres del DT.
-- Desde el detalle del partido, un botón "Cargar resultado" (DT) o "Ver resultado" (jugador) lleva a esta pantalla.
-- **DT/Capitán**: edita el marcador y las notas (botón "Guardar resultado"), y agrega/quita goles y tarjetas de a uno por vez eligiendo jugador y minuto opcional — sin edición en línea, para corregir un dato se quita la fila y se vuelve a agregar.
-- **Jugador**: ve el mismo marcador, notas, goleadores y tarjetas en texto plano, sin ningún control de edición. Si el DT todavía no cargó nada, ve un mensaje de espera ("El DT todavía no cargó el resultado de este partido").
-- Usa las nuevas tablas `match_results`, `match_goals` y `match_cards` (`0005_match_results.sql`); no depende de `match_lineups` ni de la asistencia — se puede cargar un resultado aunque el partido nunca haya tenido formación armada en la app.
-- Probado de punta a punta contra Supabase real: DT carga un 3-1 con notas, un gol (min. 23) y una tarjeta amarilla (min. 40); un jugador logueado ve exactamente esos datos en modo solo lectura, sin poder editar ni agregar nada.
+- Muestra el resumen de solo lectura de un partido: marcador (calculado desde la bitácora en vivo, sección 5.13 — ya no se tipea a mano), goleadores y tarjetas, más notas libres del DT.
+- **DT/Capitán**: edita las notas y tiene un botón "Marcar como finalizado" / "Actualizar resultado final" que guarda el marcador actual (recalculado desde `match_events`) en `match_results`, marcando el partido como terminado.
+- **Jugador**: ve lo mismo en texto plano, sin ningún control de edición. Toda la carga de goles/tarjetas/cambios pasó a hacerse desde la pestaña "En vivo" del detalle del partido (sección 5.13) — esta pantalla ya no tiene formularios propios para agregarlos.
+- Usa `match_results` (`0005_match_results.sql`, sin cambios de esquema) para el marcador guardado/notas, y `match_events` (`0011_match_events.sql`) como fuente de goleadores/tarjetas.
+- Probado de punta a punta contra Supabase real: DT carga eventos desde "En vivo", el resumen post-partido refleja el mismo marcador y lista sin necesidad de tipear nada de nuevo.
 
 ### 5.11 Estadísticas de temporada (`/stats`) — Fase 5
 
-- Agrega, para todo el equipo, los datos ya cargados en las Fases 2–4: convocatorias (asistencia confirmada), goles, tarjetas y resultados de todos los partidos agendados.
+- Agrega, para todo el equipo, los datos ya cargados en las Fases 2, 4 y 8: convocatorias (asistencia confirmada), goles/tarjetas propias (bitácora en vivo, sección 5.13) y resultados de todos los partidos agendados.
 - **Resumen del equipo**: partidos jugados (con resultado cargado), récord ganados/empatados/perdidos, goles a favor y en contra.
-- **Tabla por jugador**: convocatorias, goles, amarillas y rojas, ordenada por goles (y convocatorias como desempate).
-- Sin distinción de rol: cualquiera con sesión de equipo ve la misma tabla, ya que es puramente informativa y no permite editar nada desde ahí (los datos se cargan desde `/matches/[id]/board` y `/matches/[id]/result`).
-- No requiere ninguna tabla ni migración nueva: reutiliza `match_attendance`, `match_results`, `match_goals` y `match_cards` con consultas nuevas por `team_id` (`fetchTeamAttendance`, `fetchTeamMatchResults`, `fetchTeamMatchGoals`, `fetchTeamMatchCards` en `supabase-match-service.ts`) — las políticas de RLS ya existentes cubren la lectura agregada por equipo sin cambios.
-- Probado de punta a punta contra Supabase real: se sembraron 2 partidos (ganado 2-0 y perdido 1-3) con asistencia, goles y tarjetas repartidos entre 4 jugadores, y la tabla resultante coincidió exactamente con lo esperado (récord 1-0-1, goles 3-3, ranking de goleadores correcto); luego se verificó también el estado vacío sin datos cargados.
+- **Tabla por jugador**: convocatorias, goles, amarillas y rojas, ordenada por goles (y convocatorias como desempate) — solo cuenta eventos de `side = 'own'` con `player.playerId` identificado; los eventos del rival no tienen fila en `players`, no corresponden acá.
+- Sin distinción de rol: cualquiera con sesión de equipo ve la misma tabla, ya que es puramente informativa.
+- Reutiliza `match_attendance` y `match_results` sin cambios; `fetchTeamMatchGoals`/`fetchTeamMatchCards` (Fase 4) fueron reemplazados por `fetchTeamMatchEvents` sobre la nueva tabla `match_events` (Fase 8) — las policies de RLS ya existentes cubren la lectura agregada por equipo sin cambios.
 
 ### 5.12 Zonas de influencia (`/board` y `/matches/[id]/board`) — Fase 6
 
@@ -331,8 +329,44 @@ interface PlayerTacticalMap {
 - Probado de punta a punta contra Supabase real: login con `CONDESFC-ADMIN`, escritura confirmada bajo RLS (insert/delete de prueba en `matches`), y el switcher verificado en `/players` — oculta/muestra Importar/Exportar/Agregar/Editar/Eliminar al alternar entre vistas, y la elección persiste tras recargar la página.
 
 ### 5.15 PWA
-- Instalable (`manifest.ts`, ícono = miniatura cuadrada del escudo de Las Condes FC (`public/icon.png`, 1254×1254), soporte iOS).
+- Instalable (`manifest.ts`, ícono = miniatura cuadrada del escudo del equipo (`public/icon.png`, 1254×1254), soporte iOS con guía visual paso a paso — ver sección de notificaciones/instalación más abajo).
 - Service worker con estrategia cache-first para uso básico offline (activo solo en producción, para no interferir con el hot-reload en desarrollo).
+
+### 5.16 Bitácora en vivo del partido (`/matches/[id]`, pestaña "En vivo") — Fase 8
+
+Pensada para que quien no pudo ir a la cancha siga el partido en tiempo real desde la app: el DT/Capitán/admin va cargando goles, tarjetas, cambios y comentarios libres a medida que pasan, y cualquiera con la pantalla abierta los ve aparecer solos.
+
+**Modelo de datos — una sola tabla, `match_events`** (`0011_match_events.sql`): cada fila es un evento, de nuestro equipo o del rival.
+```ts
+type EventSide = "own" | "rival";
+type MatchEventType = "goal" | "yellow_card" | "red_card" | "substitution" | "comment";
+
+interface EventParticipant {
+  playerId?: string; // solo side="own": referencia a la plantilla propia
+  number?: number;   // dorsal — obligatorio si side="rival" (del rival solo se conoce el número)
+  name?: string;      // opcional; para "rival" muchas veces no se sabe
+}
+
+interface MatchEvent {
+  id: string; matchId: string; side: EventSide; type: MatchEventType;
+  minute?: number;
+  player?: EventParticipant;      // goleador, amonestado/expulsado, o quien entra en un cambio
+  playerOut?: EventParticipant;   // solo "substitution": quien sale
+  note?: string;                  // obligatorio si type="comment"; opcional como aclaración en cualquier otro
+  createdAt: string;
+}
+```
+Del rival no hay plantilla cargada en el sistema — por eso, a diferencia de nuestros jugadores (que se eligen de un desplegable), un evento del rival pide **dorsal obligatorio y nombre opcional**, para cualquier tipo de evento (gol, tarjeta o cambio), no solo cambios: es lo único que razonablemente se puede anotar mirando la cancha.
+
+**Unificación con el resultado post-partido**: el marcador ya no se tipea a mano en ningún lado — `computeScoreFromEvents()` (`src/utils/match-score.ts`) lo calcula contando los eventos `type="goal"` por lado, tanto en la pestaña "En vivo" como en el resumen de `/matches/[id]/result` (sección 5.10). `match_goals`/`match_cards` (Fase 4) quedan en la base con sus datos históricos pero ya no se escriben más — la migración `0011` copió esas filas existentes a `match_events` (siempre `side="own"`, no existía carga de eventos del rival antes) para que seguir viéndose en la bitácora unificada. `/stats` (sección 5.11) también pasó a agregar desde `match_events`.
+
+**Actualización en vivo**: `src/hooks/use-match-events.ts` carga la bitácora del partido y se suscribe a un canal de **Supabase Realtime** (Postgres Changes) filtrado por `match_id` — un INSERT/DELETE en `match_events` desde cualquier dispositivo aparece solo en la pantalla de quien la tenga abierta, sin recargar. Requirió habilitar la tabla en la publicación `supabase_realtime` (parte de la migración `0011`).
+
+**Diseño simplificado a propósito** (a pedido del usuario, sobre la referencia de un "match center" real): solo el escudo propio centrado arriba (no hay escudo del rival cargado en el sistema), sin número de posición en la tabla, con los dos nombres de equipo en mayúsculas y el marcador entre ellos. Debajo, dos columnas de eventos — propios a la izquierda, del rival a la derecha — cada una en el orden en que se cargaron.
+
+**Permisos**: igual que el resto de la app — `role === "dt"` (que ya cubre DT/Capitán, y admin vía el switcher) puede agregar y quitar eventos; el resto de la plantilla solo mira. RLS: `match_events_select_team` (todo el equipo lee) e insert/update/delete restringidos a `is_dt_or_admin()`.
+
+- Probado en el navegador contra un partido real agendado: la pestaña "En vivo" muestra "DECOM FC 0 - 0 CONNOTADOS" con la insignia "En vivo"; el formulario cambia sus campos correctamente según el tipo de evento elegido (jugador de la plantilla vs. dorsal+nombre libre según el lado, "Entra"/"Sale" para cambios); verificado también que la pantalla no se rompe si la tabla `match_events` todavía no existe (el error se captura con gracia, bitácora vacía en vez de pantalla en blanco) — importante porque las migraciones de este proyecto se corren a mano en Supabase después del deploy, nunca antes.
 
 ---
 
@@ -522,6 +556,8 @@ Visión a futuro: que la app reemplace a WhatsApp como canal central del equipo 
 - **Fase 5 — Estadísticas** ✅ completado — récord del equipo (G-E-P, goles a favor/en contra) y tabla de convocatorias/goles/tarjetas por jugador a lo largo de la temporada, ver sección 5.11.
 - **Fase 6 — Zonas de influencia** ✅ completado — overlay visual (degradé por jugador + líneas de cercanía) sobre la formación ya cargada, en `/board` y `/matches/[id]/board`; no hay datos reales de movimiento ni de pases, ver sección 5.12 para el detalle de esa decisión de alcance.
 - **Fase 7 — Pizarra táctica** ✅ completado — evolución propuesta por una auditoría externa (`Propustas/Mejoras tácticas app de fútbol.md`), reestructurada después en tres rondas a pedido del usuario: primero en dos pantallas separadas (`/matches/[id]/board` formación general sin dibujo, `/matches/[id]/board/[playerId]` mapa táctico individual); luego reemplazando las flechas automáticas por líneas de conexión neutras, agregando una herramienta de flechas con color (verde/rojo) y cambiando la selección de compañeros a selección directa tocando la cancha (con botones Confirmar/Editar compañeros); y finalmente cambiando las flechas de "tocar dos jugadores" a **dibujo completamente libre** en cualquier punto de la cancha, sin atarse a ningún jugador — todo con suavizado Ramer-Douglas-Peucker + Catmull-Rom + Bézier para las zonas y deshacer con historial separado por jugador, ver sección 5.13. La misma auditoría propuso además resiliencia offline (acordado: solo lectura cacheada, prioridad baja, todavía no implementada) y confirmación de asistencia por WhatsApp/SMS (descartada por costo/complejidad frente al flujo actual).
+
+- **Fase 8 — Bitácora en vivo del partido** ✅ completado — pestaña "En vivo" en `/matches/[id]`: el DT/Capitán/admin carga goles, tarjetas, cambios y comentarios libres (del propio equipo o del rival, con dorsal obligatorio + nombre opcional para el rival) a medida que ocurren, y quien tenga la pantalla abierta los ve aparecer solos vía Supabase Realtime. El marcador dejó de tipearse a mano — se calcula contando los goles cargados, y esa misma cuenta alimenta tanto el resumen de resultado (Fase 4) como las estadísticas de temporada (Fase 5), ver sección 5.16.
 
 **Otras mejoras futuras sugeridas** (no implementadas, compatibles con la arquitectura actual):
 - Sustituciones en tiempo real durante el partido.

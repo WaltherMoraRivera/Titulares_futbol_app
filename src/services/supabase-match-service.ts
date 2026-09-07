@@ -1,12 +1,13 @@
 import { supabase } from "@/lib/supabase/client";
 import {
   AttendanceStatus,
-  CardType,
+  EventParticipant,
+  EventSide,
   LineupAssignment,
   Match,
   MatchAttendance,
-  MatchCard,
-  MatchGoal,
+  MatchEvent,
+  MatchEventType,
   MatchInput,
   MatchLineupData,
   MatchResult,
@@ -186,19 +187,16 @@ interface MatchResultRow {
   updated_at: string;
 }
 
-interface MatchGoalRow {
+export interface MatchEventRow {
   id: string;
   match_id: string;
-  player_id: string;
+  side: EventSide;
+  type: MatchEventType;
   minute: number | null;
-}
-
-interface MatchCardRow {
-  id: string;
-  match_id: string;
-  player_id: string;
-  card_type: CardType;
-  minute: number | null;
+  player: EventParticipant | null;
+  player_out: EventParticipant | null;
+  note: string | null;
+  created_at: string;
 }
 
 function rowToMatchResult(row: MatchResultRow): MatchResult {
@@ -211,22 +209,17 @@ function rowToMatchResult(row: MatchResultRow): MatchResult {
   };
 }
 
-function rowToMatchGoal(row: MatchGoalRow): MatchGoal {
+export function rowToMatchEvent(row: MatchEventRow): MatchEvent {
   return {
     id: row.id,
     matchId: row.match_id,
-    playerId: row.player_id,
+    side: row.side,
+    type: row.type,
     minute: row.minute ?? undefined,
-  };
-}
-
-function rowToMatchCard(row: MatchCardRow): MatchCard {
-  return {
-    id: row.id,
-    matchId: row.match_id,
-    playerId: row.player_id,
-    cardType: row.card_type,
-    minute: row.minute ?? undefined,
+    player: row.player ?? undefined,
+    playerOut: row.player_out ?? undefined,
+    note: row.note ?? undefined,
+    createdAt: row.created_at,
   };
 }
 
@@ -266,70 +259,57 @@ export async function saveMatchResult(
   return rowToMatchResult(data as MatchResultRow);
 }
 
-export async function fetchMatchGoals(matchId: string): Promise<MatchGoal[]> {
+export async function fetchMatchEvents(matchId: string): Promise<MatchEvent[]> {
   const { data, error } = await supabase
-    .from("match_goals")
+    .from("match_events")
     .select("*")
     .eq("match_id", matchId)
-    .order("minute", { ascending: true, nullsFirst: false });
+    .order("created_at", { ascending: true });
   if (error) throw new Error(error.message);
-  return (data as MatchGoalRow[]).map(rowToMatchGoal);
+  return (data as MatchEventRow[]).map(rowToMatchEvent);
 }
 
-export async function addMatchGoal(
+export async function fetchTeamMatchEvents(teamId: string): Promise<MatchEvent[]> {
+  const { data, error } = await supabase
+    .from("match_events")
+    .select("*")
+    .eq("team_id", teamId);
+  if (error) throw new Error(error.message);
+  return (data as MatchEventRow[]).map(rowToMatchEvent);
+}
+
+export async function addMatchEvent(
   teamId: string,
   matchId: string,
-  playerId: string,
-  minute?: number
-): Promise<MatchGoal> {
+  input: {
+    side: EventSide;
+    type: MatchEventType;
+    minute?: number;
+    player?: EventParticipant;
+    playerOut?: EventParticipant;
+    note?: string;
+  }
+): Promise<MatchEvent> {
   const { data, error } = await supabase
-    .from("match_goals")
-    .insert({ match_id: matchId, team_id: teamId, player_id: playerId, minute: minute ?? null })
-    .select("*")
-    .single();
-  if (error) throw new Error(error.message);
-  return rowToMatchGoal(data as MatchGoalRow);
-}
-
-export async function removeMatchGoal(id: string): Promise<void> {
-  const { error } = await supabase.from("match_goals").delete().eq("id", id);
-  if (error) throw new Error(error.message);
-}
-
-export async function fetchMatchCards(matchId: string): Promise<MatchCard[]> {
-  const { data, error } = await supabase
-    .from("match_cards")
-    .select("*")
-    .eq("match_id", matchId)
-    .order("minute", { ascending: true, nullsFirst: false });
-  if (error) throw new Error(error.message);
-  return (data as MatchCardRow[]).map(rowToMatchCard);
-}
-
-export async function addMatchCard(
-  teamId: string,
-  matchId: string,
-  playerId: string,
-  cardType: CardType,
-  minute?: number
-): Promise<MatchCard> {
-  const { data, error } = await supabase
-    .from("match_cards")
+    .from("match_events")
     .insert({
       match_id: matchId,
       team_id: teamId,
-      player_id: playerId,
-      card_type: cardType,
-      minute: minute ?? null,
+      side: input.side,
+      type: input.type,
+      minute: input.minute ?? null,
+      player: input.player ?? null,
+      player_out: input.playerOut ?? null,
+      note: input.note?.trim() || null,
     })
     .select("*")
     .single();
   if (error) throw new Error(error.message);
-  return rowToMatchCard(data as MatchCardRow);
+  return rowToMatchEvent(data as MatchEventRow);
 }
 
-export async function removeMatchCard(id: string): Promise<void> {
-  const { error } = await supabase.from("match_cards").delete().eq("id", id);
+export async function removeMatchEvent(id: string): Promise<void> {
+  const { error } = await supabase.from("match_events").delete().eq("id", id);
   if (error) throw new Error(error.message);
 }
 
@@ -351,23 +331,6 @@ export async function fetchTeamMatchResults(teamId: string): Promise<MatchResult
   return (data as MatchResultRow[]).map(rowToMatchResult);
 }
 
-export async function fetchTeamMatchGoals(teamId: string): Promise<MatchGoal[]> {
-  const { data, error } = await supabase
-    .from("match_goals")
-    .select("*")
-    .eq("team_id", teamId);
-  if (error) throw new Error(error.message);
-  return (data as MatchGoalRow[]).map(rowToMatchGoal);
-}
-
-export async function fetchTeamMatchCards(teamId: string): Promise<MatchCard[]> {
-  const { data, error } = await supabase
-    .from("match_cards")
-    .select("*")
-    .eq("team_id", teamId);
-  if (error) throw new Error(error.message);
-  return (data as MatchCardRow[]).map(rowToMatchCard);
-}
 
 export async function setAttendance(
   teamId: string,

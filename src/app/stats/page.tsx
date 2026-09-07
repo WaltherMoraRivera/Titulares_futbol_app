@@ -7,13 +7,12 @@ import { useAuthStore } from "@/hooks/use-auth";
 import { usePlayersStore } from "@/hooks/use-players";
 import {
   fetchTeamAttendance,
-  fetchTeamMatchCards,
-  fetchTeamMatchGoals,
+  fetchTeamMatchEvents,
   fetchTeamMatchResults,
 } from "@/services/supabase-match-service";
 import { getDisplayName } from "@/utils/player-display";
 import { getPositionColor } from "@/utils/position-colors";
-import { MatchAttendance, MatchCard, MatchGoal, MatchResult } from "@/types";
+import { MatchAttendance, MatchEvent, MatchResult } from "@/types";
 import { ArrowLeft } from "lucide-react";
 
 interface PlayerStats {
@@ -30,8 +29,7 @@ export default function StatsPage() {
 
   const [attendance, setAttendance] = useState<MatchAttendance[]>([]);
   const [results, setResults] = useState<MatchResult[]>([]);
-  const [goals, setGoals] = useState<MatchGoal[]>([]);
-  const [cards, setCards] = useState<MatchCard[]>([]);
+  const [events, setEvents] = useState<MatchEvent[]>([]);
   const [dataLoaded, setDataLoaded] = useState(false);
 
   useEffect(() => {
@@ -47,13 +45,11 @@ export default function StatsPage() {
     Promise.all([
       fetchTeamAttendance(teamId),
       fetchTeamMatchResults(teamId),
-      fetchTeamMatchGoals(teamId),
-      fetchTeamMatchCards(teamId),
-    ]).then(([attendanceData, resultsData, goalsData, cardsData]) => {
+      fetchTeamMatchEvents(teamId),
+    ]).then(([attendanceData, resultsData, eventsData]) => {
       setAttendance(attendanceData);
       setResults(resultsData);
-      setGoals(goalsData);
-      setCards(cardsData);
+      setEvents(eventsData);
       setDataLoaded(true);
     });
   }, [authLoaded, teamId]);
@@ -87,16 +83,20 @@ export default function StatsPage() {
     for (const a of attendance) {
       if (a.status === "confirmed") get(a.playerId).callUps++;
     }
-    for (const g of goals) get(g.playerId).goals++;
-    for (const c of cards) {
-      if (c.cardType === "yellow") get(c.playerId).yellowCards++;
-      else get(c.playerId).redCards++;
+    // Solo eventos propios con jugador de la plantilla identificado — los
+    // del rival no tienen fila en `players`, no corresponde acá.
+    for (const e of events) {
+      const playerId = e.side === "own" ? e.player?.playerId : undefined;
+      if (!playerId) continue;
+      if (e.type === "goal") get(playerId).goals++;
+      else if (e.type === "yellow_card") get(playerId).yellowCards++;
+      else if (e.type === "red_card") get(playerId).redCards++;
     }
     return Array.from(map.values()).sort((a, b) => {
       if (b.goals !== a.goals) return b.goals - a.goals;
       return b.callUps - a.callUps;
     });
-  }, [attendance, goals, cards]);
+  }, [attendance, events]);
 
   const playersById = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
 
