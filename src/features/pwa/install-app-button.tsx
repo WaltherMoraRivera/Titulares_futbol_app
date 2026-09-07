@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useInstallPromptStore } from "@/hooks/use-install-prompt";
+import { IOSInstallGuide } from "@/features/pwa/ios-install-guide";
 import { Download, RefreshCw } from "lucide-react";
 
 const APK_URL =
@@ -20,6 +21,7 @@ function isIOS() {
 export function InstallAppButton() {
   const { deferredEvent, installed, setDeferredEvent } = useInstallPromptStore();
   const [busy, setBusy] = useState(false);
+  const [iosGuideOpen, setIosGuideOpen] = useState(false);
 
   async function handleInstall() {
     if (deferredEvent) {
@@ -35,9 +37,7 @@ export function InstallAppButton() {
     }
 
     if (isIOS()) {
-      toast.info("En iPhone: toca Compartir y luego \"Agregar a la pantalla de inicio\".", {
-        duration: 6000,
-      });
+      setIosGuideOpen(true);
       return;
     }
 
@@ -60,31 +60,32 @@ export function InstallAppButton() {
     }
   }
 
-  if (installed) {
-    return (
-      <Button
-        className="w-full justify-start"
-        size="lg"
-        variant="outline"
-        onClick={handleUpdate}
-        disabled={busy}
-      >
-        <RefreshCw className="mr-1.5 h-4 w-4" />
-        Buscar actualizaciones
-      </Button>
-    );
-  }
-
   return (
-    <Button
-      className="w-full justify-start"
-      size="lg"
-      variant="outline"
-      onClick={handleInstall}
-      disabled={busy}
-    >
-      <Download className="mr-1.5 h-4 w-4" />
-      Instalar app
-    </Button>
+    <>
+      {installed ? (
+        <Button
+          className="w-full justify-start"
+          size="lg"
+          variant="outline"
+          onClick={handleUpdate}
+          disabled={busy}
+        >
+          <RefreshCw className="mr-1.5 h-4 w-4" />
+          Buscar actualizaciones
+        </Button>
+      ) : (
+        <Button
+          className="w-full justify-start"
+          size="lg"
+          variant="outline"
+          onClick={handleInstall}
+          disabled={busy}
+        >
+          <Download className="mr-1.5 h-4 w-4" />
+          Instalar app
+        </Button>
+      )}
+      <IOSInstallGuide open={iosGuideOpen} onOpenChange={setIosGuideOpen} />
+    </>
   );
 }
