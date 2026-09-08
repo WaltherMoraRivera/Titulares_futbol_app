@@ -105,7 +105,7 @@ El proyecto está a mitad de camino entre Local Storage (diseño original) y Sup
 ### Permisos por rol en `/players`
 
 - **DT/Capitán**: alta, edición y eliminación de cualquier jugador; importar/exportar plantilla.
-- **Jugador**: sin esos botones. Solo puede editar su propio perfil ya reclamado (botón "Editar" visible únicamente en su propia fila), y el formulario oculta los campos de administración de plantilla (número de camiseta, activo/inactivo) — edita nombre, alias, "mostrar por alias", pie hábil y posiciones (`PlayerForm` con `restrictedMode`).
+- **Jugador**: sin esos botones. Solo puede editar su propio perfil ya reclamado (botón "Editar" visible únicamente en su propia fila), y el formulario oculta los campos de administración de plantilla (número de camiseta, activo/inactivo) — edita nombre, alias, pie hábil y posiciones (`PlayerForm` con `restrictedMode`).
 - Sin sesión de equipo, `/players` (y por transitividad cualquier pantalla que dependa de la plantilla) muestra un llamado a iniciar sesión con el código, en vez de una lista vacía silenciosa.
 
 La restricción de UI es una comodidad, no la barrera real: la seguridad de verdad está en las políticas de Row Level Security de Supabase (`players_update_own_or_dt`, `players_delete_dt`), así que aunque alguien manipule el cliente no puede editar ni borrar jugadores fuera de lo que su rol permite.
@@ -120,8 +120,7 @@ type Position = "POR" | "DFC" | "LAT" | "MCD" | "MC" | "VOL" | "EXT" | "MP" | "D
 interface Player {
   id: string;
   name: string;
-  alias?: string;           // apodo opcional (útil con nombres repetidos, ej. varios "Matías")
-  showAlias?: boolean;      // si true, la UI muestra el alias en vez del nombre
+  alias?: string;           // apodo opcional; si está cargado se muestra siempre junto al nombre, entre paréntesis
   number: number;
   primaryPosition: Position;
   secondaryPosition?: Position;
@@ -178,7 +177,7 @@ interface MatchLineup {
 - Búsqueda y orden (nombre, número, posición).
 - Importación masiva por **CSV** o **JSON** (solo DT/capitán), con validación fila por fila (número duplicado, posición inválida) y vista previa de errores antes de confirmar.
 - Exportación del listado visible a un archivo **JSON** descargable (solo DT/capitán), en el mismo formato que espera la importación.
-- **Alias por jugador**: campo opcional + casilla "Mostrar en la app por su alias, no por su nombre". Útil cuando hay varios jugadores con el mismo nombre de pila (ej. varios "Matías"). El nombre a mostrar se resuelve con `utils/player-display.ts` (`getDisplayName`) y se usa en todos lados: tarjetas de cancha/banca, listados, asistencia, panel de info y la imagen exportada. Cuando el alias está activo, el nombre real se sigue mostrando entre paréntesis o como dato secundario para no perder trazabilidad.
+- **Alias por jugador**: campo opcional, sin ninguna casilla que elegir — si está cargado, se muestra siempre junto al nombre real, entre paréntesis (ej. "Francisco Araneda (El colales)"), nunca en su reemplazo. (Versión anterior: una casilla "Mostrar en la app por su alias, no por su nombre" dejaba elegir mostrar el alias *en vez* del nombre; se sacó porque perdía trazabilidad — con el nombre siempre visible no hace falta elegir nada.) El nombre a mostrar se resuelve con `utils/player-display.ts` (`getDisplayName`) y se usa en todos lados: tarjetas de cancha/banca, listados, asistencia, panel de info y la imagen exportada — en los contextos compactos (tarjeta de cancha/banca) se prioriza el alias solo si existe, por espacio.
 
 ### 5.2 Asistencia (`/attendance`)
 - Marca de asistentes al partido (solo jugadores activos).

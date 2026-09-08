@@ -23,7 +23,6 @@ export function PlayerRow({
   canDelete = true,
 }: PlayerRowProps) {
   const color = player.color ?? getPositionColor(player.primaryPosition);
-  const usingAlias = !!(player.showAlias && player.alias?.trim());
 
   return (
     <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
@@ -35,12 +34,7 @@ export function PlayerRow({
       </div>
 
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">
-          {getDisplayName(player)}
-          {usingAlias && (
-            <span className="ml-1.5 font-normal text-muted-foreground">({player.name})</span>
-          )}
-        </p>
+        <p className="truncate font-medium">{getDisplayName(player)}</p>
         <div className="flex flex-wrap gap-1 pt-0.5">
           <Badge variant="secondary" style={{ color }}>
             {POSITION_LABELS[player.primaryPosition]}

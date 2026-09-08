@@ -6,7 +6,6 @@ interface PlayerRow {
   team_id: string;
   name: string;
   alias: string | null;
-  show_alias: boolean;
   number: number;
   primary_position: string;
   secondary_position: string | null;
@@ -23,7 +22,6 @@ function rowToPlayer(row: PlayerRow): Player {
     id: row.id,
     name: row.name,
     alias: row.alias ?? undefined,
-    showAlias: row.show_alias,
     number: row.number,
     primaryPosition: row.primary_position as Position,
     secondaryPosition: (row.secondary_position ?? undefined) as Position | undefined,
@@ -39,7 +37,6 @@ function playerInputToFields(input: PlayerInput) {
   return {
     name: input.name,
     alias: input.alias ?? null,
-    show_alias: input.showAlias ?? false,
     number: input.number,
     primary_position: input.primaryPosition,
     secondary_position: input.secondaryPosition ?? null,

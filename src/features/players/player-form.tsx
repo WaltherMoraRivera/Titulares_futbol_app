@@ -66,7 +66,6 @@ export function PlayerForm({
 }: PlayerFormProps) {
   const [name, setName] = useState("");
   const [alias, setAlias] = useState("");
-  const [showAlias, setShowAlias] = useState(false);
   const [number, setNumber] = useState("");
   const [primaryPosition, setPrimaryPosition] = useState<string>("");
   const [secondaryPosition, setSecondaryPosition] = useState<string>(NONE);
@@ -79,7 +78,6 @@ export function PlayerForm({
     if (open) {
       setName(player?.name ?? "");
       setAlias(player?.alias ?? "");
-      setShowAlias(player?.showAlias ?? false);
       setNumber(player ? String(player.number) : "");
       setPrimaryPosition(player?.primaryPosition ?? "");
       setSecondaryPosition(player?.secondaryPosition ?? NONE);
@@ -98,7 +96,6 @@ export function PlayerForm({
       {
         name,
         alias,
-        showAlias,
         number,
         primaryPosition,
         secondaryPosition: secondaryPosition === NONE ? "" : secondaryPosition,
@@ -149,25 +146,12 @@ export function PlayerForm({
               id="alias"
               placeholder="Ej: Fideo, Chapa, Tanque..."
               value={alias}
-              onChange={(e) => {
-                const value = e.target.value;
-                setAlias(value);
-                if (!value.trim()) setShowAlias(false);
-              }}
+              onChange={(e) => setAlias(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              Útil cuando hay varios jugadores con el mismo nombre.
+              Si lo completas, se muestra junto al nombre, entre paréntesis (ej. &quot;Juan Pérez
+              (Fideo)&quot;).
             </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="showAlias"
-              checked={showAlias}
-              disabled={!alias.trim()}
-              onCheckedChange={(v) => setShowAlias(v === true)}
-            />
-            <Label htmlFor="showAlias">Mostrar en la app por su alias, no por su nombre</Label>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

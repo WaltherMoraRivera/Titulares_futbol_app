@@ -65,12 +65,6 @@ export function PlayerInfoSheet({
             </SheetHeader>
 
             <div className="space-y-2 px-4 pb-6 text-sm">
-              {player.showAlias && player.alias?.trim() && (
-                <p>
-                  <span className="text-muted-foreground">Nombre: </span>
-                  {player.name}
-                </p>
-              )}
               <p>
                 <span className="text-muted-foreground">Posición principal: </span>
                 {POSITION_LABELS[player.primaryPosition]}

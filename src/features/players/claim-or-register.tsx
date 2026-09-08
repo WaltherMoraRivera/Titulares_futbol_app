@@ -16,7 +16,6 @@ interface TeamPlayer {
   number: number;
   name: string;
   alias: string | null;
-  show_alias: boolean;
   primary_position: string;
   claimed_by: string | null;
 }
@@ -46,7 +45,7 @@ export function ClaimOrRegisterPlayer({
     (async () => {
       const { data, error: fetchError } = await supabase
         .from("players")
-        .select("id, number, name, alias, show_alias, primary_position, claimed_by")
+        .select("id, number, name, alias, primary_position, claimed_by")
         .order("number");
       if (cancelled) return;
       if (!fetchError) setPlayers(data ?? []);
@@ -98,7 +97,7 @@ export function ClaimOrRegisterPlayer({
       <div className="max-h-[60vh] space-y-2 overflow-y-auto">
         {players.map((p) => {
           const color = getPositionColor(p.primary_position as Position) ?? "#888";
-          const displayName = p.show_alias && p.alias?.trim() ? p.alias : p.name;
+          const displayName = p.alias?.trim() ? `${p.name} (${p.alias.trim()})` : p.name;
           return (
             <button
               key={p.id}
