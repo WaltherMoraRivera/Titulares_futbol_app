@@ -38,6 +38,10 @@ const TYPE_ICON: Record<MatchEventType, string> = {
   comment: "💬",
 };
 
+function formatPlayerOption(player: Player): string {
+  return `${player.number} - ${getDisplayName(player)}`;
+}
+
 function formatParticipant(
   participant: EventParticipant | undefined,
   playersById: Map<string, Player>
@@ -175,7 +179,7 @@ export function LiveMatchPanel({
   }
 
   const playerItems = useMemo(
-    () => Object.fromEntries(players.map((p) => [p.id, getDisplayName(p)])),
+    () => Object.fromEntries(players.map((p) => [p.id, formatPlayerOption(p)])),
     [players]
   );
 
@@ -266,7 +270,7 @@ export function LiveMatchPanel({
                   <SelectContent>
                     {players.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
-                        {getDisplayName(p)}
+                        {formatPlayerOption(p)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -307,7 +311,7 @@ export function LiveMatchPanel({
                   <SelectContent>
                     {players.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
-                        {getDisplayName(p)}
+                        {formatPlayerOption(p)}
                       </SelectItem>
                     ))}
                   </SelectContent>
