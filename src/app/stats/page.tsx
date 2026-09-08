@@ -8,11 +8,13 @@ import { usePlayersStore } from "@/hooks/use-players";
 import {
   fetchTeamAttendance,
   fetchTeamMatchEvents,
+  fetchTeamMatchLineups,
   fetchTeamMatchResults,
 } from "@/services/supabase-match-service";
 import { getDisplayName } from "@/utils/player-display";
 import { getPositionColor } from "@/utils/position-colors";
-import { MatchAttendance, MatchEvent, MatchResult } from "@/types";
+import { computeMinutesPlayed } from "@/utils/minutes-played";
+import { MatchAttendance, MatchEvent, MatchLineupData, MatchResult } from "@/types";
 import { ArrowLeft } from "lucide-react";
 
 interface PlayerStats {
@@ -21,6 +23,7 @@ interface PlayerStats {
   goals: number;
   yellowCards: number;
   redCards: number;
+  minutesPlayed: number;
 }
 
 export default function StatsPage() {
@@ -30,6 +33,7 @@ export default function StatsPage() {
   const [attendance, setAttendance] = useState<MatchAttendance[]>([]);
   const [results, setResults] = useState<MatchResult[]>([]);
   const [events, setEvents] = useState<MatchEvent[]>([]);
+  const [lineups, setLineups] = useState<MatchLineupData[]>([]);
   const [dataLoaded, setDataLoaded] = useState(false);
 
   useEffect(() => {
@@ -46,10 +50,12 @@ export default function StatsPage() {
       fetchTeamAttendance(teamId),
       fetchTeamMatchResults(teamId),
       fetchTeamMatchEvents(teamId),
-    ]).then(([attendanceData, resultsData, eventsData]) => {
+      fetchTeamMatchLineups(teamId),
+    ]).then(([attendanceData, resultsData, eventsData, lineupsData]) => {
       setAttendance(attendanceData);
       setResults(resultsData);
       setEvents(eventsData);
+      setLineups(lineupsData);
       setDataLoaded(true);
     });
   }, [authLoaded, teamId]);
@@ -75,7 +81,7 @@ export default function StatsPage() {
     function get(playerId: string): PlayerStats {
       let stats = map.get(playerId);
       if (!stats) {
-        stats = { playerId, callUps: 0, goals: 0, yellowCards: 0, redCards: 0 };
+        stats = { playerId, callUps: 0, goals: 0, yellowCards: 0, redCards: 0, minutesPlayed: 0 };
         map.set(playerId, stats);
       }
       return stats;
@@ -92,11 +98,29 @@ export default function StatsPage() {
       else if (e.type === "yellow_card") get(playerId).yellowCards++;
       else if (e.type === "red_card") get(playerId).redCards++;
     }
+
+    // Minutos jugados: solo cuentan los partidos con al menos un cambio
+    // cargado en la bitácora en vivo (si no, no hay forma de saber si
+    // hubo cambios que nunca se registraron) — ver computeMinutesPlayed.
+    const eventsByMatch = new Map<string, MatchEvent[]>();
+    for (const e of events) {
+      const arr = eventsByMatch.get(e.matchId);
+      if (arr) arr.push(e);
+      else eventsByMatch.set(e.matchId, [e]);
+    }
+    for (const lineup of lineups) {
+      const minutes = computeMinutesPlayed(lineup, eventsByMatch.get(lineup.matchId) ?? []);
+      if (!minutes) continue;
+      for (const [playerId, mins] of Object.entries(minutes)) {
+        get(playerId).minutesPlayed += mins;
+      }
+    }
+
     return Array.from(map.values()).sort((a, b) => {
       if (b.goals !== a.goals) return b.goals - a.goals;
       return b.callUps - a.callUps;
     });
-  }, [attendance, events]);
+  }, [attendance, events, lineups]);
 
   const playersById = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
 
@@ -172,6 +196,7 @@ export default function StatsPage() {
                     <tr>
                       <th className="px-3 py-2 text-left font-medium">Jugador</th>
                       <th className="px-2 py-2 text-center font-medium">Conv.</th>
+                      <th className="px-2 py-2 text-center font-medium">Min.</th>
                       <th className="px-2 py-2 text-center font-medium">Goles</th>
                       <th className="px-2 py-2 text-center font-medium">🟨</th>
                       <th className="px-2 py-2 text-center font-medium">🟥</th>
@@ -201,6 +226,7 @@ export default function StatsPage() {
                             </div>
                           </td>
                           <td className="px-2 py-2 text-center">{stats.callUps}</td>
+                          <td className="px-2 py-2 text-center">{stats.minutesPlayed}&apos;</td>
                           <td className="px-2 py-2 text-center font-semibold">{stats.goals}</td>
                           <td className="px-2 py-2 text-center">{stats.yellowCards}</td>
                           <td className="px-2 py-2 text-center">{stats.redCards}</td>

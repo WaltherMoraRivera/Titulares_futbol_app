@@ -136,6 +136,15 @@ function rowToMatchLineup(row: MatchLineupRow): MatchLineupData {
   };
 }
 
+export async function fetchTeamMatchLineups(teamId: string): Promise<MatchLineupData[]> {
+  const { data, error } = await supabase
+    .from("match_lineups")
+    .select("*")
+    .eq("team_id", teamId);
+  if (error) throw new Error(error.message);
+  return (data as MatchLineupRow[]).map(rowToMatchLineup);
+}
+
 export async function fetchMatchLineup(matchId: string): Promise<MatchLineupData | null> {
   const { data, error } = await supabase
     .from("match_lineups")
