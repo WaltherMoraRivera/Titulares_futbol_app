@@ -3,7 +3,6 @@ import { POSITIONS, Position } from "@/types";
 export interface PlayerDraft {
   name: string;
   alias?: string;
-  showAlias?: boolean | string;
   number: number | string;
   primaryPosition: string;
   secondaryPosition?: string;
@@ -17,7 +16,6 @@ export interface ValidationResult {
   normalized?: {
     name: string;
     alias?: string;
-    showAlias: boolean;
     number: number;
     primaryPosition: Position;
     secondaryPosition?: Position;
@@ -42,13 +40,6 @@ export function validatePlayerDraft(
   if (!name) errors.push("El nombre es obligatorio.");
 
   const alias = draft.alias?.trim() || undefined;
-  const showAlias =
-    typeof draft.showAlias === "string"
-      ? ["true", "1", "si", "sí"].includes(draft.showAlias.trim().toLowerCase())
-      : (draft.showAlias ?? false);
-  if (showAlias && !alias) {
-    errors.push("Para mostrar por alias hay que escribir un alias.");
-  }
 
   const number = typeof draft.number === "string" ? Number(draft.number) : draft.number;
   if (!Number.isInteger(number) || number <= 0) {
@@ -101,7 +92,6 @@ export function validatePlayerDraft(
     normalized: {
       name,
       alias,
-      showAlias,
       number,
       primaryPosition: primaryPosition as Position,
       secondaryPosition,

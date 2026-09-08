@@ -1,12 +1,14 @@
 import { Player } from "@/types";
 
 /**
- * Nombre a mostrar en la UI. Si el jugador tiene alias activado, se usa
- * el alias completo; si no, el nombre real (o solo el primer nombre en
- * contextos compactos como las tarjetas de la cancha/banca).
+ * Nombre a mostrar en la UI. El alias es siempre un dato opcional que
+ * acompaña al nombre real, nunca lo reemplaza: si está cargado, se
+ * muestra entre paréntesis después del nombre (ej. "Juan Pérez (Fideo)").
+ * En contextos compactos (cancha/banca) se prioriza el alias solo si
+ * existe, por espacio; si no hay alias, se usa el primer nombre.
  */
 export function getDisplayName(player: Player, options?: { short?: boolean }): string {
   const alias = player.alias?.trim();
-  if (player.showAlias && alias) return alias;
-  return options?.short ? player.name.split(" ")[0] : player.name;
+  if (options?.short) return alias || player.name.split(" ")[0];
+  return alias ? `${player.name} (${alias})` : player.name;
 }
