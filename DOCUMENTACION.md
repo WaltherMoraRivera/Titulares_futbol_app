@@ -1,6 +1,6 @@
 # TITULARES — Documentación del proyecto
 
-Aplicación web para armar la formación de un equipo de fútbol amateur en menos de un minuto. Mobile-first, con persistencia local y arquitectura preparada para migrar a un backend (Supabase/Firebase) sin reescribir la app.
+Aplicación web para gestionar un equipo de fútbol amateur — plantilla, partidos, formación, asistencia, resultados, estadísticas y una bitácora en vivo del partido — con Supabase como backend. Mobile-first. El diseño original nació como una app de solo Local Storage migrable a backend; esa migración ya se hizo para casi todo (queda un flujo suelto, `/attendance` → `/formation` → `/board`, todavía en Local Storage como atajo rápido — ver sección 3).
 
 ---
 
@@ -11,8 +11,8 @@ Aplicación web para armar la formación de un equipo de fútbol amateur en meno
 | **Nombre** | TITULARES |
 | **Equipo / marca** | Decom FC (antes "Las Condes FC" — renombrado en la base para no confundirse con un equipo rival real que usa ese mismo nombre) |
 | **Objetivo** | Que el capitán arme la alineación del partido en menos de 1 minuto desde el celular |
-| **Flujo principal** | Asistencia → Elegir formación → Arrastrar jugadores → Compartir |
-| **Persistencia** | Local Storage (vía capa de abstracción, migrable a backend) |
+| **Flujo principal** | Agendar partido → Confirmar asistencia → Armar formación → Bitácora en vivo el día del partido → Resultado y estadísticas |
+| **Persistencia** | Supabase (Postgres + RLS + Auth anónima) para casi todo; Local Storage solo en el flujo suelto original (`/attendance` → `/formation` → `/board`) |
 | **Ubicación (código)** | `formacion-ya/` |
 | **URL de producción** | https://formacion-ya.vercel.app |
 
@@ -28,7 +28,9 @@ Aplicación web para armar la formación de un equipo de fútbol amateur en meno
 | **shadcn/ui** (sobre **Base UI**, no Radix) | Componentes de UI (Dialog, Sheet, Select, etc.) |
 | **Framer Motion** | Animaciones (listas, entrada/salida de tarjetas, drag) |
 | **dnd-kit** (`@dnd-kit/core`) | Drag & drop de jugadores en la cancha |
-| **Zustand** | Estado global por dominio (jugadores, asistencia, cancha, historial) |
+| **Zustand** | Estado global por dominio (jugadores, asistencia, cancha, historial, auth, notificaciones push...) |
+| **Supabase** (`@supabase/supabase-js`) | Backend: Postgres + Row Level Security, Auth anónima, Realtime (Postgres Changes) para la bitácora en vivo |
+| **web-push** | Envío de notificaciones push (Web Push/VAPID) desde la ruta de servidor `api/notify-match` |
 | **html-to-image** | Exportar la formación como imagen PNG |
 | **uuid** | Generación de IDs |
 | **React 19** | Incluye el hook `use()` para resolver `params` asíncronos |
@@ -42,45 +44,50 @@ Aplicación web para armar la formación de un equipo de fútbol amateur en meno
 ```
 formacion-ya/
 ├─ public/
-│  ├─ logo.png           # escudo de Las Condes FC (fondo transparente, usado en el Home)
+│  ├─ logo.png           # escudo del equipo (fondo transparente, usado en el Home y en la bitácora en vivo)
 │  ├─ icon.png           # miniatura cuadrada del escudo (ícono de PWA, favicon, apple-touch-icon)
-│  └─ sw.js               # service worker (cache-first, solo producción)
+│  └─ sw.js               # service worker (cache-first + push/notificationclick, solo producción)
 ├─ src/
 │  ├─ app/                       # rutas (Next.js App Router)
-│  │  ├─ layout.tsx              # layout raíz, metadata, tema, backdrop decorativo
+│  │  ├─ layout.tsx              # layout raíz, metadata, tema, backdrop decorativo, listeners de SW/install prompt
 │  │  ├─ manifest.ts             # manifest de la PWA
 │  │  ├─ page.tsx                # Home
-│  │  ├─ login/page.tsx          # ingreso por código de equipo (Fase 0)
+│  │  ├─ login/page.tsx          # ingreso por código de equipo, con autoregistro (Fase 0, sección 5.19)
+│  │  ├─ profile/page.tsx        # "Mi perfil": ficha propia, o reclamar/registrarse si falta (sección 5.19)
 │  │  ├─ players/page.tsx        # gestión de jugadores (Supabase)
 │  │  ├─ matches/                # partidos agendados (Fase 2) + formación (Fase 3) + resultado (Fase 4)
-│  │  │  ├─ page.tsx             # listado (próximos / pasados)
+│  │  │  ├─ page.tsx             # listado (próximos / pasados), marcador de los ya jugados, notificar
 │  │  │  └─ [id]/
-│  │  │     ├─ page.tsx          # detalle + asistencia anticipada
+│  │  │     ├─ page.tsx          # detalle, pestañas "En vivo" (sección 5.16) y "Asistencia"
 │  │  │     ├─ board/
 │  │  │     │  ├─ page.tsx       # formación general del partido (Supabase)
 │  │  │     │  └─ [playerId]/page.tsx  # mapa táctico individual de ese jugador (Fase 7)
-│  │  │     └─ result/page.tsx   # resultado, goleadores, tarjetas y notas del DT (Supabase)
+│  │  │     └─ result/page.tsx   # resumen de resultado (solo lectura) + notas del DT
+│  │  ├─ stats/page.tsx          # estadísticas de temporada, incluidos minutos jugados (Fase 5, Supabase)
+│  │  ├─ api/notify-match/route.ts  # ruta de servidor: envía las notificaciones push (sección 5.18)
 │  │  ├─ attendance/page.tsx     # asistencia "del día" para armar formación (todavía Local Storage)
 │  │  ├─ formation/page.tsx      # selector de esquema táctico
 │  │  ├─ board/page.tsx          # constructor (cancha + banca + compartir)
-│  │  ├─ history/
-│  │  │  ├─ page.tsx             # listado de formaciones pasadas
-│  │  │  └─ [id]/page.tsx        # detalle de una formación
-│  │  └─ stats/page.tsx          # estadísticas de temporada (Fase 5, Supabase)
+│  │  └─ history/
+│  │     ├─ page.tsx             # listado de formaciones pasadas
+│  │     └─ [id]/page.tsx        # detalle de una formación
 │  ├─ components/ui/             # componentes shadcn/ui (base-ui)
 │  ├─ features/                  # componentes con lógica específica de dominio
-│  │  ├─ players/                # formulario, fila, importación
+│  │  ├─ players/                # formulario, fila, importación, reclamar/registrarse (claim-or-register)
+│  │  ├─ matches/                 # formulario de partido, marcador en la lista, bitácora en vivo, control de notificaciones
 │  │  ├─ attendance/              # fila de asistencia
 │  │  ├─ board/                   # cancha, banca, tarjeta de jugador, export, compartir, zonas de influencia, mapa táctico individual
 │  │  ├─ history/                 # tarjeta de historial
 │  │  ├─ admin/                   # switcher "ver como Jugador/DT-Capitán" para la cuenta admin
-│  │  └─ pwa/                     # registro del service worker
-│  ├─ hooks/                      # stores Zustand (use-players, use-attendance, use-board, use-history, use-auth)
+│  │  └─ pwa/                     # registro del SW, listener + botón de instalación manual, guía para iPhone
+│  ├─ hooks/                      # stores/hooks (use-players, use-attendance, use-board, use-history, use-auth,
+│  │                              # use-match-events, use-push-notifications, use-install-prompt...)
 │  ├─ lib/supabase/               # cliente de Supabase para el navegador
 │  ├─ services/                   # lógica de negocio + acceso a storage/Supabase
 │  ├─ storage/                    # capa de abstracción de persistencia (Local Storage)
-│  ├─ types/                      # tipos de dominio (Player, FormationTemplate, MatchLineup...)
-│  └─ utils/                      # helpers puros (colores, presets, validación, CSV, export de imagen)
+│  ├─ types/                      # tipos de dominio (Player, FormationTemplate, MatchLineup, MatchEvent...)
+│  └─ utils/                      # helpers puros (colores, presets, validación, CSV, export de imagen,
+│                                  # marcador/minutos jugados a partir de la bitácora en vivo)
 ```
 
 ### Persistencia: estado de la migración a Supabase
@@ -173,7 +180,7 @@ interface MatchLineup {
 
 ### 5.1 Gestión de jugadores (`/players`)
 - Plantilla compartida en Supabase, la misma para todos los dispositivos del equipo (ver "Persistencia: estado de la migración a Supabase" más abajo).
-- Alta, edición y eliminación — restringido por rol: DT/capitán opera sobre cualquier jugador, un jugador solo sobre su propio perfil reclamado (ver "Permisos por rol en `/players`").
+- Alta, edición y eliminación — restringido por rol: DT/capitán opera sobre cualquier jugador, un jugador solo sobre su propio perfil reclamado (ver "Permisos por rol en `/players`"). Un jugador nuevo también puede darse de alta él mismo desde `/login` o "Mi perfil", sin depender del DT — ver sección 5.19.
 - Búsqueda y orden (nombre, número, posición).
 - Importación masiva por **CSV** o **JSON** (solo DT/capitán), con validación fila por fila (número duplicado, posición inválida) y vista previa de errores antes de confirmar.
 - Exportación del listado visible a un archivo **JSON** descargable (solo DT/capitán), en el mismo formato que espera la importación.
@@ -321,7 +328,7 @@ interface PlayerTacticalMap {
 
 ### 5.14 Cuenta admin y switcher de vista (para pruebas)
 
-- Tercer código de equipo (`admin_code` en `teams`, por defecto **`CONDESFC-ADMIN`** para Las Condes FC) que inicia sesión con rol `admin`. A nivel de Supabase/RLS, `admin` tiene exactamente los mismos permisos de escritura que `dt` en todas las tablas (vía la función `is_dt_or_admin()`), así que cualquier acción que pruebes con esta cuenta queda escrita en la base real igual que si la hiciera el DT.
+- Tercer código de equipo (`admin_code` en `teams`, por defecto **`CONDESFC-ADMIN`** para Decom FC) que inicia sesión con rol `admin`. A nivel de Supabase/RLS, `admin` tiene exactamente los mismos permisos de escritura que `dt` en todas las tablas (vía la función `is_dt_or_admin()`), así que cualquier acción que pruebes con esta cuenta queda escrita en la base real igual que si la hiciera el DT.
 - Al entrar con este código aparece un **switcher flotante** ("Vista: Jugador / DT-Capitán") fijo en la parte inferior de la pantalla, en todas las páginas. Cambia lo que el resto de la app "ve" como `role` — sin volver a iniciar sesión — para poder probar de punta a punta tanto las pantallas de solo lectura del jugador como las editables del DT/Capitán.
 - **DT y Capitán muestran exactamente lo mismo**: hoy son el mismo rol de permisos en toda la app (no hay ninguna pantalla ni policy que los distinga), así que el switcher es de dos posiciones, no de tres — ver la decisión tomada con el usuario antes de implementarlo.
 - La vista elegida se guarda en `localStorage` del dispositivo (no en la base), así que persiste entre recargas pero es local a cada navegador/dispositivo donde se use la cuenta admin.
@@ -378,6 +385,41 @@ Pensado para alguien que ayuda al DT/Capitán a cargar la bitácora en vivo (sec
 - **Único permiso extra sobre un jugador**: cargar/quitar eventos en la bitácora en vivo de cualquier partido (`can_log_match_events()` en RLS).
 - Implementación: nuevo rol `assistant` en `profiles.role` y nuevo código de equipo, `teams.assistant_code` (migración `0012_assistant_role.sql`). En el cliente, `useAuthStore` resuelve el `role` "efectivo" del asistente siempre como `"player"` (así hereda automáticamente cada chequeo `role === "dt"` que ya existe en toda la app, sin tocarlos uno por uno) y expone por separado `canLogLiveEvents` (true para DT, para admin salvo que esté previsualizando como jugador, y siempre para asistente) — el único lugar que lee ese flag es la pestaña "En vivo".
 - Sin switcher de vista (eso es solo para la cuenta admin, sección 5.14) — el asistente es un rol real y fijo, no una previsualización.
+
+### 5.18 Notificaciones push de partido nuevo
+
+Para que quien no revisa la app todos los días se entere de un partido nuevo sin depender de WhatsApp — usa **Web Push** del navegador (no un servicio de terceros de pago).
+
+- **Activarlas**: `src/features/matches/notification-settings.tsx`, control persistente (no un banner descartable) en `/matches`, visible a cualquiera con sesión. Muestra el estado real — "Activadas"/"Desactivadas" — con un botón para prender o apagar, y un tercer estado de solo lectura ("Notificaciones bloqueadas para este sitio...") si el navegador ya las bloqueó a nivel de permisos, con instrucciones para reactivarlas manualmente. Pensado para que alguien pueda apagarlas un tiempo (ej. lesión, suspendido, se va del equipo) sin perder la suscripción de otro dispositivo ni afectar al resto.
+- **Modelo de datos**: tabla `push_subscriptions` (`0009_push_subscriptions.sql`) — una fila por dispositivo suscrito (`user_id`, `team_id`, `endpoint`, `p256dh`, `auth_key`; nada de datos personales como email o teléfono). RLS: cada sesión da de alta/baja su propia fila; el DT/Capitán/admin puede leer todas las del equipo (necesario para poder enviarles el aviso).
+- **Enviar el aviso**: botón campana en cada partido próximo de `/matches` (solo DT/Capitán/admin), que llama a la ruta de servidor `src/app/api/notify-match/route.ts`. Esa ruta:
+  - Valida quién llama con su propio token de sesión (no con una llave de servicio) — si no es DT/admin, la policy de RLS le bloquea la lectura de `push_subscriptions` y la ruta responde 403.
+  - **Solo notifica a quien todavía no confirmó ni rechazó su asistencia** a ese partido puntual (`0010_notify_pending_only.sql` agregó la policy `profiles_select_team_dt` para poder cruzar cada suscripción con el jugador dueño de esa sesión y su estado de asistencia) — a quien ya respondió no le manda otro recordatorio.
+  - Usa la librería `web-push` con llaves VAPID (`NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` en las variables de entorno de Vercel) para mandar el push real; si un endpoint quedó obsoleto (dispositivo desinstaló la app, error 404/410), borra esa suscripción de paso.
+- **Service worker** (`public/sw.js`): agrega los listeners `push` (arma la notificación del sistema) y `notificationclick` (abre `/matches/[id]` del partido, enfocando una pestaña ya abierta si existe en vez de abrir una nueva).
+- Probado de punta a punta contra Supabase real, incluyendo un bug encontrado y corregido en el camino: `savePushSubscription` usaba `supabase.auth.getUser()` (revalida contra el servidor, puede fallar en condiciones de red inestables) en vez de `getSession()` (lee la sesión ya guardada localmente) — eso rompía silenciosamente el alta de la suscripción; corregido, y de paso se separó el estado "permiso del navegador concedido" del estado "suscripción realmente confirmada" para poder reintentar sin quedar trabado.
+
+### 5.19 "Mi perfil" y autoregistro de jugadores nuevos (`/profile`, `/login`)
+
+- **"Mi perfil"**, botón en el inicio, punto de entrada único para ver/editar los propios datos sin importar en qué estado quedó la sesión — cubre a alguien que entró con el código pero nunca completó el paso de reclamar un jugador:
+  - Si ya reclamó un jugador: abre directo su ficha para editarla (`PlayerForm` en modo `restrictedMode`, igual que el botón "Editar" de la propia fila en `/players`).
+  - Si no reclamó ninguno (y no es asistente ni DT sin jugador propio): muestra la lista de reclamar/registrarse (ver debajo).
+  - Si es asistente (sección 5.17): mensaje explicando que los asistentes no tienen perfil de jugador — nunca ofrece reclamar/registrarse.
+- **Autoregistro** (`src/features/players/claim-or-register.tsx`, componente compartido entre `/login` y `/profile`): antes solo se podía "reclamar" un número ya cargado por el DT en la plantilla; un jugador nuevo no tenía forma de entrar con sus propios datos. A nivel de RLS ya se podía (`players_insert_team` no está restringida a DT), solo faltaba exponerlo en la UI. Botón "No estoy en la lista — registrarme como jugador nuevo" que abre `PlayerForm` en un modo nuevo, `selfRegister`: a diferencia de `restrictedMode` normal, sí muestra el campo **Número** (nadie se lo asignó todavía), pero sigue ocultando "activo" (default `true`). Al confirmar, crea la fila (`addPlayer`) y de inmediato la reclama para la sesión actual (`claimPlayer`), sin paso intermedio.
+- Probado de punta a punta contra Supabase real: registro con nombre, número y posición, verificado que la fila quedó creada con `claimed_by` apuntando a la sesión que se registró.
+- **Pendiente, anotado aparte pero no corregido todavía**: `claim_player` no valida que el jugador ya esté reclamado por otra persona, así que cualquiera puede "robar" un perfil ya tomado tocándolo en la lista — la UI tampoco deshabilita esas filas, solo les pone la etiqueta "Ya reclamado".
+
+### 5.20 Instalar la app manualmente + guía para iPhone
+
+El navegador solo ofrece instalar la PWA automáticamente **una vez** (y nunca en iPhone — Apple no lo permite para ninguna PWA, de ningún sitio, es una limitación de la plataforma, no de esta app). Para no depender de esa única oportunidad:
+
+- `src/features/pwa/install-prompt-listener.tsx` (montado una vez en `layout.tsx`) captura el evento `beforeinstallprompt` apenas el navegador lo emite y lo guarda en `useInstallPromptStore`, en vez de dejar que el navegador muestre su aviso automático — así se puede disparar después, a demanda, desde un botón propio.
+- Botón **"Instalar app"** en el inicio (`src/features/pwa/install-app-button.tsx`):
+  - Si el evento capturado está disponible: dispara el instalador nativo del navegador.
+  - Si es iPhone: abre un modal con los 3 pasos para "Agregar a inicio" desde Safari (`src/features/pwa/ios-install-guide.tsx`) — íconos de Compartir y Agregar, en vez de un toast fácil de perderse (única forma real de "instalar" en iPhone, no hay equivalente al `.apk`).
+  - En cualquier otro caso (ya se descartó el aviso antes, o el navegador no lo soporta): ofrece el `.apk` del repo como alternativa de descarga manual.
+  - Si la app ya está instalada (modo standalone): el botón cambia a **"Buscar actualizaciones"**, que fuerza un chequeo del service worker y recarga.
+- Evaluado con el usuario si perseguir además publicar en el App Store real (Apple Developer Program, ~US$99/año + Xcode + revisión) — se descartó por ahora a favor de esta vía gratuita.
 
 ---
 
@@ -496,6 +538,12 @@ Variables de entorno necesarias en `.env.local` (no versionado, ver sección "Ba
 ```
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+
+# Notificaciones push (sección 5.18) — llaves generadas una sola vez con
+# `npx web-push generate-vapid-keys`, no hace falta regenerarlas.
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=...
+VAPID_PRIVATE_KEY=...
+VAPID_SUBJECT=mailto:...
 ```
 
 ### Producción (Vercel)
@@ -507,6 +555,7 @@ La app está desplegada en Vercel:
 - Cuenta: `walthermorarivera`, proyecto `z-labs2/formacion-ya`.
 - Conectado al repositorio GitHub (`WaltherMoraRivera/Titulares_futbol_app`, rama `main`): **cada `git push` a `main` dispara un deploy automático a producción**. Ya no hace falta correr `vercel --prod` a mano.
 - Al estar en HTTPS, ahí sí funciona la Web Share API completa (compartir la formación directo a WhatsApp desde el celular).
+- **Flujo de trabajo dev → producción** (establecido a partir de la Fase 8, ya que la app está en uso real por el equipo): todo cambio se implementa y prueba primero en la rama `dev`, que Vercel despliega en su propia URL de Preview (`formacion-ya-git-dev-z-labs2.vercel.app`, protegida por Vercel SSO — solo la cuenta dueña entra). Recién cuando el usuario prueba ahí y confirma explícitamente, se mergea `dev` → `main` (`--no-ff`) y se pushea, lo que dispara el deploy a producción. Las variables de entorno (Supabase, VAPID) están configuradas en Vercel tanto para `Production` como para `Preview`.
 
 ### Backend (Supabase) — Fase 0
 
@@ -529,6 +578,10 @@ El jugador, una vez dentro, reclama su número de camiseta de la plantilla (o cr
 - `0006_admin_role.sql` — cuenta admin para pruebas: columna `teams.admin_code`, rol `'admin'` agregado al check de `profiles.role`, función `is_dt_or_admin()`, `claim_team` extendida para reconocer el nuevo código, y todas las policies que antes chequeaban `current_role() = 'dt'` reescritas para usar `is_dt_or_admin()`. Ver sección 5.14.
 - `0007_lineup_graphics.sql` — pizarra táctica avanzada (Fase 7, versión inicial): columna `match_lineups.graphics` (jsonb, `[]` por defecto) para flechas y zonas. Sin cambios de RLS — cubierta por las policies ya existentes de `match_lineups`.
 - `0008_player_tactical_maps.sql` — reestructuración de la Fase 7: renombra `match_lineups.graphics` a `tactical_maps` (mismo dato subyacente, sin migración de datos real) para reflejar el nuevo modelo de mapas tácticos por jugador en vez de gráficos sueltos del equipo. Ver sección 5.13.
+- `0009_push_subscriptions.sql` — tabla `push_subscriptions` para las notificaciones push de partido nuevo. Ver sección 5.18.
+- `0010_notify_pending_only.sql` — policy `profiles_select_team_dt`, para que el DT pueda cruzar cada suscripción push con el jugador dueño de esa sesión y notificar solo a quien tiene la asistencia pendiente. Ver sección 5.18.
+- `0011_match_events.sql` — tabla `match_events` (Fase 8, bitácora en vivo del partido): goles, tarjetas, cambios y comentarios, de nuestro equipo o del rival. Migra además los datos históricos de `match_goals`/`match_cards` a la tabla nueva. Ver sección 5.16.
+- `0012_assistant_role.sql` — nuevo rol `assistant` en `profiles.role`, columna `teams.assistant_code`, función `can_log_match_events()` (más acotada que `is_dt_or_admin()`, solo gobierna `match_events`) y `claim_team` extendida para reconocer el código nuevo. Ver sección 5.17.
 
 `teams` **no tiene policy de select** a propósito: la única forma de leer/usar los códigos es a través de las funciones `claim_team`/`get_my_team`, así un código incorrecto no revela nada de la tabla.
 
@@ -540,7 +593,7 @@ Como el login automático del CLI de Supabase no funciona en este entorno de des
 
 Probado de punta a punta: login con código de jugador, listado de plantilla, reclamo de un número, y confirmación de que `players.claimed_by` quedó escrito en la base real.
 
-**Estado:** login, reclamo de jugador, gestión de la plantilla (`/players`), partidos agendados con asistencia anticipada (`/matches`, Fase 2), formación + instrucciones tácticas por partido (`/matches/[id]/board`, Fase 3), resultado post-partido con goleadores y tarjetas (`/matches/[id]/result`, Fase 4), estadísticas de temporada (`/stats`, Fase 5), zonas de influencia visuales sobre la cancha (Fase 6), pizarra táctica en dos vistas —formación general del equipo y mapa táctico individual por jugador con compañeros curados (seleccionados tocando la cancha), flechas y zonas libres con color (verde/rojo) y deshacer— (Fase 7) **y una cuenta admin con switcher de vista para pruebas** funcionando en producción real contra Supabase, con permisos por rol probados de punta a punta (edición propia para jugador, control total para DT/capitán, verificado también que las políticas de RLS bloquean del lado del servidor, no solo en la interfaz). El flujo local original (`/attendance` → `/formation` → `/board` → `/history`) sigue vivo aparte, sin migrar a Supabase, como atajo rápido del DT para armar una formación suelta sin agendar un partido.
+**Estado:** login (con autoregistro de jugadores nuevos, sección 5.19), gestión de la plantilla (`/players`), partidos agendados con asistencia anticipada (`/matches`, Fase 2) con notificaciones push a quien tiene la asistencia pendiente (sección 5.18), formación + instrucciones tácticas por partido (`/matches/[id]/board`, Fase 3), bitácora en vivo del partido con goles/tarjetas/cambios/comentarios en tiempo real (Fase 8, sección 5.16) que alimenta tanto el resumen de resultado (Fase 4) como las estadísticas de temporada, incluidos los minutos jugados por jugador (`/stats`, Fase 5), zonas de influencia visuales sobre la cancha (Fase 6), pizarra táctica en dos vistas —formación general del equipo y mapa táctico individual por jugador con compañeros curados (seleccionados tocando la cancha), flechas y zonas libres con color (verde/rojo) y deshacer— (Fase 7), cuenta admin con switcher de vista y rol asistente para apoyar la carga en vivo (secciones 5.14 y 5.17), e instalación manual de la PWA con guía dedicada para iPhone (sección 5.20) — todo funcionando en producción real contra Supabase, con permisos por rol probados de punta a punta (edición propia para jugador, control total para DT/capitán, verificado también que las políticas de RLS bloquean del lado del servidor, no solo en la interfaz). El flujo local original (`/attendance` → `/formation` → `/board` → `/history`) sigue vivo aparte, sin migrar a Supabase, como atajo rápido del DT para armar una formación suelta sin agendar un partido.
 
 **Códigos de equipo (Decom FC, antes "Las Condes FC" — los códigos en sí no cambiaron):** jugador `CONDESFC-JUGADOR` · DT/Capitán `CONDESFC-CAPITAN` · admin (pruebas, switcher de vista) `CONDESFC-ADMIN` · asistente (apoyo en la bitácora en vivo, sección 5.17) `CONDESFC-ASISTENTE`.
 
@@ -553,7 +606,7 @@ Probado de punta a punta: login con código de jugador, listado de plantilla, re
 
 ## 9. Estado del proyecto y pendientes
 
-**Completado:** login por código de equipo con roles (Fase 0), gestión de jugadores sobre Supabase con alias y permisos por rol, partidos agendados con asistencia anticipada (Fase 2), formación + instrucciones tácticas atadas a cada partido agendado con vista editable para el DT y de solo lectura para el jugador (Fase 3, sobre Supabase), registro post-partido con marcador, goleadores, tarjetas y notas del DT (Fase 4, sobre Supabase), estadísticas de temporada agregadas por jugador y récord del equipo (Fase 5, sobre Supabase), zonas de influencia visuales sobre la cancha en ambas pantallas de formación (Fase 6), pizarra táctica separada en formación general del equipo y mapa táctico individual por jugador (compañeros curados tocando la cancha, líneas de conexión, flechas y zonas libres con color verde/rojo, y deshacer por jugador) (Fase 7, sobre Supabase), cuenta admin con switcher de vista Jugador/DT-Capitán para pruebas, constructor de formación local con drag & drop (con `DragOverlay` para que la tarjeta arrastrada no se recorte ni desaparezca, banca con desplazamiento lateral), compartir por imagen con Web Share API (incluye instrucciones tácticas), historial, animaciones, responsive, PWA instalable con ícono de marca, tema visual oscuro con paleta del escudo de Las Condes FC, despliegue en producción con HTTPS + auto-deploy desde GitHub, paquete `.apk` para instalación directa en Android.
+**Completado:** login por código de equipo con roles, incluido autoregistro de jugadores nuevos sin depender del DT (Fase 0), gestión de jugadores sobre Supabase con alias (siempre visible junto al nombre, sin casilla que elegir) y permisos por rol, partidos agendados con asistencia anticipada y notificaciones push a quien tiene la asistencia pendiente (Fase 2), formación + instrucciones tácticas atadas a cada partido agendado con vista editable para el DT y de solo lectura para el jugador (Fase 3, sobre Supabase), bitácora en vivo del partido con goles/tarjetas/cambios/comentarios en tiempo real vía Supabase Realtime, marcador calculado solo (Fase 8), resumen de resultado post-partido alimentado por esa misma bitácora con notas del DT (Fase 4, sobre Supabase), estadísticas de temporada agregadas por jugador —incluidos los minutos jugados— y récord del equipo (Fase 5, sobre Supabase), zonas de influencia visuales sobre la cancha en ambas pantallas de formación (Fase 6), pizarra táctica separada en formación general del equipo y mapa táctico individual por jugador (compañeros curados tocando la cancha, líneas de conexión, flechas y zonas libres con color verde/rojo, y deshacer por jugador) (Fase 7, sobre Supabase), cuenta admin con switcher de vista Jugador/DT-Capitán y rol asistente para apoyar la carga en vivo, "Mi perfil" como punto de entrada único a los propios datos, constructor de formación local con drag & drop (con `DragOverlay` para que la tarjeta arrastrada no se recorte ni desaparezca, banca con desplazamiento lateral), compartir por imagen con Web Share API (incluye instrucciones tácticas), historial, animaciones, responsive, PWA instalable con botón manual + guía dedicada para iPhone, tema visual oscuro con paleta del escudo del equipo, despliegue en producción con HTTPS + auto-deploy desde GitHub, paquete `.apk` para instalación directa en Android.
 
 ### Roadmap: de "ver la formación" a plataforma del equipo
 
@@ -571,7 +624,8 @@ Visión a futuro: que la app reemplace a WhatsApp como canal central del equipo 
 - **Fase 8 — Bitácora en vivo del partido** ✅ completado — pestaña "En vivo" en `/matches/[id]`: el DT/Capitán/admin/asistente carga goles, tarjetas, cambios y comentarios libres (del propio equipo o del rival, con dorsal obligatorio + nombre opcional para el rival) a medida que ocurren, y quien tenga la pantalla abierta los ve aparecer solos vía Supabase Realtime. El marcador dejó de tipearse a mano — se calcula contando los goles cargados, y esa misma cuenta alimenta tanto el resumen de resultado (Fase 4) como las estadísticas de temporada (Fase 5, incluidos los minutos jugados por jugador), ver secciones 5.16 y 5.17.
 
 **Otras mejoras futuras sugeridas** (no implementadas, compatibles con la arquitectura actual):
-- Sustituciones en tiempo real durante el partido.
 - Exportación a PDF.
 - Múltiples plantillas/equipos.
-- Publicar el `.apk` también en Google Play (requiere cuenta de desarrollador de pago) o generar el paquete equivalente para iOS.
+- Publicar el `.apk` también en Google Play (requiere cuenta de desarrollador de pago) o generar el paquete equivalente para iOS (evaluado y descartado por ahora, sección 5.20).
+- Que `claim_player` valide que un jugador no esté ya reclamado por otra persona antes de dejar "robarlo" (bug encontrado, anotado en sección 5.19, todavía sin corregir).
+- Envío automático (cron) de la notificación de partido el mismo día, vs. mantenerlo como botón manual del DT/admin — evaluado como viable pero todavía sin decidir cuál de los dos caminos tomar (sección 5.18).
