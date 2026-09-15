@@ -29,7 +29,7 @@ const item = {
 };
 
 export default function Home() {
-  const { loaded, teamName, role, playerId, load, logout } = useAuthStore();
+  const { loaded, teamName, role, actualRole, playerId, load, logout } = useAuthStore();
 
   useEffect(() => {
     if (!loaded) load();
@@ -124,7 +124,13 @@ export default function Home() {
         {teamName ? (
           <p className="flex items-center justify-center gap-2 text-muted-foreground">
             Conectado a <span className="font-medium text-foreground">{teamName}</span> ·{" "}
-            {role === "dt" ? "DT/Capitán" : playerId ? "Jugador" : "sin reclamar"}
+            {role === "dt"
+              ? "DT/Capitán"
+              : actualRole === "assistant"
+                ? "Asistente"
+                : playerId
+                  ? "Jugador"
+                  : "sin reclamar"}
             <button
               onClick={logout}
               className="ml-1 inline-flex items-center gap-1 text-primary hover:underline"

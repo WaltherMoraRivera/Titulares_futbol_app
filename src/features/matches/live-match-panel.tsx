@@ -62,7 +62,7 @@ interface LiveMatchPanelProps {
   match: Match;
   teamId: string;
   teamName: string | null;
-  isDt: boolean;
+  canEdit: boolean;
   players: Player[];
   isFinished: boolean;
 }
@@ -71,7 +71,7 @@ export function LiveMatchPanel({
   match,
   teamId,
   teamName,
-  isDt,
+  canEdit,
   players,
   isFinished,
 }: LiveMatchPanelProps) {
@@ -212,7 +212,7 @@ export function LiveMatchPanel({
         </p>
       </section>
 
-      {isDt && (
+      {canEdit && (
         <section className="space-y-3 rounded-xl border bg-card p-4">
           <p className="text-sm font-semibold text-muted-foreground">Agregar evento</p>
 
@@ -369,12 +369,12 @@ export function LiveMatchPanel({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               {ownEvents.map((event) => (
-                <EventRow key={event.id} event={event} isDt={isDt} onRemove={handleRemove} playersById={playersById} />
+                <EventRow key={event.id} event={event} canEdit={canEdit} onRemove={handleRemove} playersById={playersById} />
               ))}
             </div>
             <div className="space-y-2">
               {rivalEvents.map((event) => (
-                <EventRow key={event.id} event={event} isDt={isDt} onRemove={handleRemove} playersById={playersById} align="right" />
+                <EventRow key={event.id} event={event} canEdit={canEdit} onRemove={handleRemove} playersById={playersById} align="right" />
               ))}
             </div>
           </div>
@@ -386,13 +386,13 @@ export function LiveMatchPanel({
 
 function EventRow({
   event,
-  isDt,
+  canEdit,
   onRemove,
   playersById,
   align = "left",
 }: {
   event: import("@/types").MatchEvent;
-  isDt: boolean;
+  canEdit: boolean;
   onRemove: (id: string) => void;
   playersById: Map<string, Player>;
   align?: "left" | "right";
@@ -412,7 +412,7 @@ function EventRow({
         {event.minute != null && (
           <span className="font-mono text-muted-foreground">{event.minute}&apos;</span>
         )}
-        {isDt && (
+        {canEdit && (
           <button
             type="button"
             onClick={() => onRemove(event.id)}

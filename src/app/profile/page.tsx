@@ -17,7 +17,8 @@ import { ArrowLeft, KeyRound } from "lucide-react";
  * no, ofrece la misma lista de reclamar/registrarse que usa /login. */
 export default function ProfilePage() {
   const router = useRouter();
-  const { loaded: authLoaded, teamId, teamName, playerId, load: loadAuth } = useAuthStore();
+  const { loaded: authLoaded, teamId, teamName, actualRole, playerId, load: loadAuth } =
+    useAuthStore();
   const { players, loaded: playersLoaded, load: loadPlayers, updatePlayer } = usePlayersStore();
 
   useEffect(() => {
@@ -77,6 +78,10 @@ export default function ProfilePage() {
       ) : playerId && !own ? (
         <p className="text-center text-sm text-muted-foreground">
           No se encontró tu jugador en la plantilla.
+        </p>
+      ) : actualRole === "assistant" ? (
+        <p className="text-center text-sm text-muted-foreground">
+          Los asistentes no tienen perfil de jugador en la plantilla.
         </p>
       ) : (
         <ClaimOrRegisterPlayer teamName={teamName} onDone={() => router.push("/")} />
