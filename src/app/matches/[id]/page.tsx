@@ -39,7 +39,15 @@ export default function MatchDetailPage({
   const { id } = use(params);
   const router = useRouter();
 
-  const { loaded: authLoaded, teamId, teamName, role, playerId, load: loadAuth } = useAuthStore();
+  const {
+    loaded: authLoaded,
+    teamId,
+    teamName,
+    role,
+    playerId,
+    canLogLiveEvents,
+    load: loadAuth,
+  } = useAuthStore();
   const { players, loaded: playersLoaded, load: loadPlayers } = usePlayersStore();
   const {
     matches,
@@ -195,7 +203,7 @@ export default function MatchDetailPage({
                   match={match}
                   teamId={teamId}
                   teamName={teamName}
-                  isDt={isDt}
+                  canEdit={canLogLiveEvents}
                   players={players}
                   isFinished={results.some((r) => r.matchId === id)}
                 />

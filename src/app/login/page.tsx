@@ -22,10 +22,14 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // DT/admin/asistente nunca pasan por el paso de reclamar/registrar
+  // jugador — ni siquiera el asistente, que no tiene perfil en la plantilla.
+  const skipsPickPlayer = (r: TeamRole) => r === "dt" || r === "admin" || r === "assistant";
+
   useEffect(() => {
-    if (teamId && role === "dt") setStep("done");
+    if (teamId && actualRole && skipsPickPlayer(actualRole)) setStep("done");
     else if (teamId && playerId) setStep("done");
-  }, [teamId, role, playerId]);
+  }, [teamId, actualRole, playerId]);
 
   async function handleSubmitCode() {
     if (!code.trim()) return;
@@ -33,7 +37,7 @@ export default function LoginPage() {
     setError(null);
     try {
       const resolvedRole: TeamRole = await loginWithCode(code);
-      setStep(resolvedRole === "dt" || resolvedRole === "admin" ? "done" : "pick-player");
+      setStep(skipsPickPlayer(resolvedRole) ? "done" : "pick-player");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo validar el código.");
     } finally {
@@ -86,9 +90,11 @@ export default function LoginPage() {
             Listo. Entraste a <span className="font-medium text-foreground">{teamName}</span>{" "}
             {actualRole === "admin"
               ? `como administrador (vista: ${role === "dt" ? "DT/Capitán" : "Jugador"}).`
-              : role === "dt"
-                ? "como DT/Capitán."
-                : "como jugador."}
+              : actualRole === "assistant"
+                ? "como asistente."
+                : role === "dt"
+                  ? "como DT/Capitán."
+                  : "como jugador."}
           </p>
           <Button className="w-full" size="lg" onClick={() => router.push("/")}>
             Ir al inicio

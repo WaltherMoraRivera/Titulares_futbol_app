@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { supabase } from "@/lib/supabase/client";
 
-export type TeamRole = "player" | "dt" | "admin";
+export type TeamRole = "player" | "dt" | "admin" | "assistant";
 export type PreviewRole = "player" | "dt";
 
 const PREVIEW_ROLE_KEY = "titulares:admin-preview-role";
@@ -23,10 +23,17 @@ interface AuthState {
   teamName: string | null;
   /** Rol "efectivo" que consume el resto de la app: para una cuenta admin,
    * es la vista elegida en el switcher (Jugador o DT/Capitán), no el rol
-   * real guardado en la base. */
+   * real guardado en la base. El asistente siempre resuelve a "player" acá
+   * — para todo lo que no sea la bitácora en vivo, se comporta como
+   * jugador (ver `canLogLiveEvents`). */
   role: PreviewRole | null;
   /** Rol real devuelto por Supabase, sin aplicar la vista del switcher. */
   actualRole: TeamRole | null;
+  /** Puede cargar eventos en la bitácora en vivo de un partido (goles,
+   * tarjetas, cambios, comentarios): DT/admin (según la vista elegida, si
+   * es una cuenta admin) o asistente (siempre, no tiene switcher). Es el
+   * único permiso adicional que gana el asistente sobre un jugador. */
+  canLogLiveEvents: boolean;
   playerId: string | null;
   load: () => Promise<void>;
   loginWithCode: (code: string) => Promise<TeamRole>;
@@ -43,7 +50,14 @@ async function ensureAnonymousSession() {
 }
 
 function resolveDisplayRole(actualRole: TeamRole): PreviewRole {
-  return actualRole === "admin" ? loadPreviewRole() : (actualRole as PreviewRole);
+  if (actualRole === "admin") return loadPreviewRole();
+  if (actualRole === "assistant") return "player";
+  return actualRole;
+}
+
+function resolveCanLogLiveEvents(actualRole: TeamRole, displayRole: PreviewRole): boolean {
+  if (actualRole === "assistant") return true;
+  return displayRole === "dt";
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -52,6 +66,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   teamName: null,
   role: null,
   actualRole: null,
+  canLogLiveEvents: false,
   playerId: null,
 
   load: async () => {
@@ -69,12 +84,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const row = teamData[0];
     const actualRole = row.role as TeamRole;
+    const role = resolveDisplayRole(actualRole);
     set({
       loaded: true,
       teamId: row.team_id,
       teamName: row.team_name,
-      role: resolveDisplayRole(actualRole),
+      role,
       actualRole,
+      canLogLiveEvents: resolveCanLogLiveEvents(actualRole, role),
       playerId: row.player_id,
     });
   },
@@ -87,11 +104,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     const row = data[0];
     const actualRole = row.role as TeamRole;
+    const role = resolveDisplayRole(actualRole);
     set({
       teamId: row.team_id,
       teamName: row.team_name,
-      role: resolveDisplayRole(actualRole),
+      role,
       actualRole,
+      canLogLiveEvents: resolveCanLogLiveEvents(actualRole, role),
       playerId: null,
     });
     return actualRole;
@@ -105,12 +124,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: async () => {
     await supabase.auth.signOut();
-    set({ teamId: null, teamName: null, role: null, actualRole: null, playerId: null });
+    set({
+      teamId: null,
+      teamName: null,
+      role: null,
+      actualRole: null,
+      canLogLiveEvents: false,
+      playerId: null,
+    });
   },
 
   setPreviewRole: (previewRole) => {
     if (get().actualRole !== "admin") return;
     savePreviewRole(previewRole);
-    set({ role: previewRole });
+    set({ role: previewRole, canLogLiveEvents: previewRole === "dt" });
   },
 }));

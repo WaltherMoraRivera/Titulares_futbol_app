@@ -209,7 +209,7 @@ interface MatchLineup {
 
 ### 5.7 Login por código de equipo (`/login`) — Fase 0
 
-- Sin usuario/contraseña: se ingresa un código de equipo (uno para jugadores, otro para DT/capitán, y uno más de administrador para pruebas — ver sección 5.13) y el dispositivo queda identificado. Ver detalle técnico en "Backend (Supabase)" en la sección 8.
+- Sin usuario/contraseña: se ingresa un código de equipo (uno para jugadores, otro para DT/capitán, uno de administrador para pruebas — sección 5.14 — y uno de asistente para apoyar la carga de datos en vivo — sección 5.17) y el dispositivo queda identificado. Ver detalle técnico en "Backend (Supabase)" en la sección 8.
 - El jugador elige su número de camiseta de la plantilla real para "reclamarlo"; desde ese momento su edición de perfil queda asociada a él.
 - La sesión persiste sola entre visitas (no hay que reingresar el código cada vez).
 
@@ -365,9 +365,19 @@ Del rival no hay plantilla cargada en el sistema — por eso, a diferencia de nu
 
 **Diseño simplificado a propósito** (a pedido del usuario, sobre la referencia de un "match center" real): solo el escudo propio centrado arriba (no hay escudo del rival cargado en el sistema), sin número de posición en la tabla, con los dos nombres de equipo en mayúsculas y el marcador entre ellos. Debajo, dos columnas de eventos — propios a la izquierda, del rival a la derecha — cada una en el orden en que se cargaron.
 
-**Permisos**: igual que el resto de la app — `role === "dt"` (que ya cubre DT/Capitán, y admin vía el switcher) puede agregar y quitar eventos; el resto de la plantilla solo mira. RLS: `match_events_select_team` (todo el equipo lee) e insert/update/delete restringidos a `is_dt_or_admin()`.
+**Permisos**: puede agregar y quitar eventos quien tenga `canLogLiveEvents` (store `useAuthStore`) — DT/Capitán, admin vía el switcher (si no está previsualizando como jugador), o el rol **asistente** (sección 5.17, agregado después específicamente para esto); el resto de la plantilla solo mira. RLS: `match_events_select_team` (todo el equipo lee) e insert/update/delete restringidos a `can_log_match_events()` (`current_role() in ('dt','admin','assistant')` — más acotada que `is_dt_or_admin()`, que se sigue usando para todo lo demás).
 
 - Probado en el navegador contra un partido real agendado: la pestaña "En vivo" muestra "DECOM FC 0 - 0 CONNOTADOS" con la insignia "En vivo"; el formulario cambia sus campos correctamente según el tipo de evento elegido (jugador de la plantilla vs. dorsal+nombre libre según el lado, "Entra"/"Sale" para cambios); verificado también que la pantalla no se rompe si la tabla `match_events` todavía no existe (el error se captura con gracia, bitácora vacía en vez de pantalla en blanco) — importante porque las migraciones de este proyecto se corren a mano en Supabase después del deploy, nunca antes.
+
+### 5.17 Rol Asistente (para apoyar la carga de datos en vivo)
+
+Pensado para alguien que ayuda al DT/Capitán a cargar la bitácora en vivo (sección 5.16) durante el partido, sin ser parte del cuerpo técnico ni de la plantilla de jugadores.
+
+- **En todo lo demás, es idéntico al rol Jugador**: puede ver la plantilla, partidos, formaciones, resultados y estadísticas, pero no puede editar nada de eso (agendar partidos, armar formación, cargar resultados, gestionar jugadores) — mismas restricciones de UI y de RLS que un jugador.
+- **Nunca tiene perfil dentro de la plantilla**: a diferencia de un jugador, no reclama ni registra ningún jugador — `/login` lo salta directo a "listo" (mismo trato que DT/admin en ese paso), y "Mi perfil" le muestra un aviso en vez de la lista de reclamar/registrarse.
+- **Único permiso extra sobre un jugador**: cargar/quitar eventos en la bitácora en vivo de cualquier partido (`can_log_match_events()` en RLS).
+- Implementación: nuevo rol `assistant` en `profiles.role` y nuevo código de equipo, `teams.assistant_code` (migración `0012_assistant_role.sql`). En el cliente, `useAuthStore` resuelve el `role` "efectivo" del asistente siempre como `"player"` (así hereda automáticamente cada chequeo `role === "dt"` que ya existe en toda la app, sin tocarlos uno por uno) y expone por separado `canLogLiveEvents` (true para DT, para admin salvo que esté previsualizando como jugador, y siempre para asistente) — el único lugar que lee ese flag es la pestaña "En vivo".
+- Sin switcher de vista (eso es solo para la cuenta admin, sección 5.14) — el asistente es un rol real y fijo, no una previsualización.
 
 ---
 
@@ -526,13 +536,13 @@ Como el login automático del CLI de Supabase no funciona en este entorno de des
 
 **Siembra de datos:** `supabase/seed-players.js <código>` — script reutilizable que carga una plantilla de jugadores a la tabla `players` de un equipo. Ya se usó una vez para migrar los 16 jugadores reales al proyecto de Supabase (la fuente original era `Listado_Jugadores/jugadores-2026-07-31.json`; el archivo intermedio `src/data/default-players.ts`, usado antes para sembrar Local Storage, ya no existe — quedó obsoleto en cuanto `players` pasó a vivir en Supabase).
 
-**Pantalla de login** (`/login`, `src/hooks/use-auth.ts`): ingresás el código → si es de jugador, elegís tu número de camiseta de la plantilla (`claim_player`); si es de DT/capitán, entrás directo con permisos de administración. La sesión anónima de Supabase persiste sola en `localStorage` (`sb-<project-ref>-auth-token`), así que no hay que volver a ingresar el código en cada visita — al cargar, `use-auth.ts` llama a `get_my_team()` para recuperar el estado. Se agregó también un indicador de sesión y un botón "Salir" en el Home.
+**Pantalla de login** (`/login`, `src/hooks/use-auth.ts`): se ingresa el código → si es de jugador, se elige el número de camiseta de la plantilla (`claim_player`); si es de DT/capitán, entra directo con permisos de administración. La sesión anónima de Supabase persiste sola en `localStorage` (`sb-<project-ref>-auth-token`), así que no hay que volver a ingresar el código en cada visita — al cargar, `use-auth.ts` llama a `get_my_team()` para recuperar el estado. Se agregó también un indicador de sesión y un botón "Salir" en el Home.
 
 Probado de punta a punta: login con código de jugador, listado de plantilla, reclamo de un número, y confirmación de que `players.claimed_by` quedó escrito en la base real.
 
 **Estado:** login, reclamo de jugador, gestión de la plantilla (`/players`), partidos agendados con asistencia anticipada (`/matches`, Fase 2), formación + instrucciones tácticas por partido (`/matches/[id]/board`, Fase 3), resultado post-partido con goleadores y tarjetas (`/matches/[id]/result`, Fase 4), estadísticas de temporada (`/stats`, Fase 5), zonas de influencia visuales sobre la cancha (Fase 6), pizarra táctica en dos vistas —formación general del equipo y mapa táctico individual por jugador con compañeros curados (seleccionados tocando la cancha), flechas y zonas libres con color (verde/rojo) y deshacer— (Fase 7) **y una cuenta admin con switcher de vista para pruebas** funcionando en producción real contra Supabase, con permisos por rol probados de punta a punta (edición propia para jugador, control total para DT/capitán, verificado también que las políticas de RLS bloquean del lado del servidor, no solo en la interfaz). El flujo local original (`/attendance` → `/formation` → `/board` → `/history`) sigue vivo aparte, sin migrar a Supabase, como atajo rápido del DT para armar una formación suelta sin agendar un partido.
 
-**Códigos de equipo (Decom FC, antes "Las Condes FC" — los códigos en sí no cambiaron):** jugador `CONDESFC-JUGADOR` · DT/Capitán `CONDESFC-CAPITAN` · admin (pruebas, switcher de vista) `CONDESFC-ADMIN`.
+**Códigos de equipo (Decom FC, antes "Las Condes FC" — los códigos en sí no cambiaron):** jugador `CONDESFC-JUGADOR` · DT/Capitán `CONDESFC-CAPITAN` · admin (pruebas, switcher de vista) `CONDESFC-ADMIN` · asistente (apoyo en la bitácora en vivo, sección 5.17) `CONDESFC-ASISTENTE`.
 
 ### Repositorio y paquete Android
 
@@ -558,7 +568,7 @@ Visión a futuro: que la app reemplace a WhatsApp como canal central del equipo 
 - **Fase 6 — Zonas de influencia** ✅ completado — overlay visual (degradé por jugador + líneas de cercanía) sobre la formación ya cargada, en `/board` y `/matches/[id]/board`; no hay datos reales de movimiento ni de pases, ver sección 5.12 para el detalle de esa decisión de alcance.
 - **Fase 7 — Pizarra táctica** ✅ completado — evolución propuesta por una auditoría externa (`Propustas/Mejoras tácticas app de fútbol.md`), reestructurada después en tres rondas a pedido del usuario: primero en dos pantallas separadas (`/matches/[id]/board` formación general sin dibujo, `/matches/[id]/board/[playerId]` mapa táctico individual); luego reemplazando las flechas automáticas por líneas de conexión neutras, agregando una herramienta de flechas con color (verde/rojo) y cambiando la selección de compañeros a selección directa tocando la cancha (con botones Confirmar/Editar compañeros); y finalmente cambiando las flechas de "tocar dos jugadores" a **dibujo completamente libre** en cualquier punto de la cancha, sin atarse a ningún jugador — todo con suavizado Ramer-Douglas-Peucker + Catmull-Rom + Bézier para las zonas y deshacer con historial separado por jugador, ver sección 5.13. La misma auditoría propuso además resiliencia offline (acordado: solo lectura cacheada, prioridad baja, todavía no implementada) y confirmación de asistencia por WhatsApp/SMS (descartada por costo/complejidad frente al flujo actual).
 
-- **Fase 8 — Bitácora en vivo del partido** ✅ completado — pestaña "En vivo" en `/matches/[id]`: el DT/Capitán/admin carga goles, tarjetas, cambios y comentarios libres (del propio equipo o del rival, con dorsal obligatorio + nombre opcional para el rival) a medida que ocurren, y quien tenga la pantalla abierta los ve aparecer solos vía Supabase Realtime. El marcador dejó de tipearse a mano — se calcula contando los goles cargados, y esa misma cuenta alimenta tanto el resumen de resultado (Fase 4) como las estadísticas de temporada (Fase 5), ver sección 5.16.
+- **Fase 8 — Bitácora en vivo del partido** ✅ completado — pestaña "En vivo" en `/matches/[id]`: el DT/Capitán/admin/asistente carga goles, tarjetas, cambios y comentarios libres (del propio equipo o del rival, con dorsal obligatorio + nombre opcional para el rival) a medida que ocurren, y quien tenga la pantalla abierta los ve aparecer solos vía Supabase Realtime. El marcador dejó de tipearse a mano — se calcula contando los goles cargados, y esa misma cuenta alimenta tanto el resumen de resultado (Fase 4) como las estadísticas de temporada (Fase 5, incluidos los minutos jugados por jugador), ver secciones 5.16 y 5.17.
 
 **Otras mejoras futuras sugeridas** (no implementadas, compatibles con la arquitectura actual):
 - Sustituciones en tiempo real durante el partido.
