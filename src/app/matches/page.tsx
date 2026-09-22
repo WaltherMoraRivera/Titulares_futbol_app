@@ -102,7 +102,7 @@ export default function MatchesPage() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <h1 className="flex-1 text-xl font-semibold">Partidos</h1>
+        <h1 className="min-w-0 flex-1 truncate text-xl font-semibold">Partidos</h1>
         {isDt && (
           <Button onClick={() => setFormOpen(true)}>
             <Plus className="mr-1 h-4 w-4" />

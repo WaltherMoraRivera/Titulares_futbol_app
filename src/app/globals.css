@@ -123,6 +123,13 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html,
+  body {
+    /* El contenido siempre debe acoplarse al ancho del dispositivo: nunca
+       scroll horizontal, aunque algún elemento interno se pase por error. */
+    overflow-x: hidden;
+    max-width: 100%;
+  }
   body {
     @apply text-foreground;
     background-color: oklch(0.09 0.008 60);

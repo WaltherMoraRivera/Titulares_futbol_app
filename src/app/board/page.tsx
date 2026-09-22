@@ -152,7 +152,7 @@ export default function BoardPage() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <h1 className="flex-1 text-xl font-semibold">{formation?.label ?? "Formación"}</h1>
+        <h1 className="min-w-0 flex-1 truncate text-xl font-semibold">{formation?.label ?? "Formación"}</h1>
         <Button
           size="icon"
           variant={showInfluence ? "default" : "outline"}
