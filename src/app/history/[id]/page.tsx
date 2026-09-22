@@ -64,7 +64,7 @@ export default function HistoryDetailPage({
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <h1 className="flex-1 text-xl font-semibold">
+        <h1 className="min-w-0 flex-1 truncate text-xl font-semibold">
           {lineup?.opponent ? `vs ${lineup.opponent}` : formation?.label}
         </h1>
         <Button

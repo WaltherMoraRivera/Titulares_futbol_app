@@ -154,7 +154,7 @@ export default function PlayerTacticalMapPage({
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <h1 className="flex-1 text-xl font-semibold">{owner ? getDisplayName(owner) : ""}</h1>
+          <h1 className="min-w-0 flex-1 truncate text-xl font-semibold">{owner ? getDisplayName(owner) : ""}</h1>
         </header>
         <p className="py-8 text-center text-sm text-muted-foreground">
           Este jugador no está en la cancha en esta formación.
@@ -171,7 +171,7 @@ export default function PlayerTacticalMapPage({
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <h1 className="flex-1 text-xl font-semibold">
+        <h1 className="min-w-0 flex-1 truncate text-xl font-semibold">
           {owner ? getDisplayName(owner) : "Jugador"}
         </h1>
       </header>

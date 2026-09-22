@@ -124,7 +124,7 @@ export default function MatchResultPage({
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <h1 className="flex-1 text-xl font-semibold">
+        <h1 className="min-w-0 flex-1 truncate text-xl font-semibold">
           {match?.opponent ? `vs ${match.opponent}` : "Resultado"}
         </h1>
       </header>

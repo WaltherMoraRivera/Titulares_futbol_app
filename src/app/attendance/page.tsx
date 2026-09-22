@@ -47,7 +47,7 @@ export default function AttendancePage() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <h1 className="flex-1 text-xl font-semibold">Asistencia</h1>
+        <h1 className="min-w-0 flex-1 truncate text-xl font-semibold">Asistencia</h1>
         <span className="flex items-center gap-1 text-sm text-muted-foreground">
           <Users className="h-4 w-4" />
           {attendeeIds.length}/{activePlayers.length}
