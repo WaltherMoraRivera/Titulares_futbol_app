@@ -28,6 +28,8 @@ const TYPE_LABELS: Record<MatchEventType, string> = {
   red_card: "Roja",
   substitution: "Cambio",
   comment: "Comentario",
+  half_time: "Fin 1er tiempo",
+  full_time: "Fin del partido",
 };
 
 const TYPE_ICON: Record<MatchEventType, string> = {
@@ -36,7 +38,15 @@ const TYPE_ICON: Record<MatchEventType, string> = {
   red_card: "🟥",
   substitution: "🔄",
   comment: "💬",
+  half_time: "⏸️",
+  full_time: "🏁",
 };
+
+/** Los marcadores de fin de tiempo no son de "nuestro equipo" ni del
+ * rival — solo sirven para separar la bitácora en Primer/Segundo tiempo. */
+function isHalfMarker(type: MatchEventType) {
+  return type === "half_time" || type === "full_time";
+}
 
 function formatPlayerOption(player: Player): string {
   return `${player.number} - ${getDisplayName(player)}`;
@@ -56,6 +66,38 @@ function formatParticipant(
   }
   if (participant.number != null) return `#${participant.number}`;
   return participant.name?.trim() ?? "";
+}
+
+function earliestOfType(
+  events: import("@/types").MatchEvent[],
+  type: MatchEventType
+): import("@/types").MatchEvent | undefined {
+  return events
+    .filter((e) => e.type === type)
+    .sort((a, b) => (a.minute ?? 0) - (b.minute ?? 0))[0];
+}
+
+/** Reparte los eventos de un lado en los tres tramos del partido, según
+ * los minutos de los marcadores de fin de tiempo (si están cargados). Un
+ * evento sin minuto cargado queda en el primer tramo abierto. */
+function splitByHalves(
+  events: import("@/types").MatchEvent[],
+  halfMinute: number | undefined,
+  fullMinute: number | undefined
+) {
+  const first: import("@/types").MatchEvent[] = [];
+  const second: import("@/types").MatchEvent[] = [];
+  const extra: import("@/types").MatchEvent[] = [];
+  for (const e of events) {
+    const m = e.minute;
+    if (halfMinute != null && m != null && m > halfMinute) {
+      if (fullMinute != null && m > fullMinute) extra.push(e);
+      else second.push(e);
+    } else {
+      first.push(e);
+    }
+  }
+  return { first, second, extra };
 }
 
 interface LiveMatchPanelProps {
@@ -92,13 +134,36 @@ export function LiveMatchPanel({
 
   const { teamScore, opponentScore } = useMemo(() => computeScoreFromEvents(events), [events]);
 
-  const ownEvents = useMemo(
-    () => events.filter((e) => e.side === "own"),
+  // El primero cargado de cada marcador manda si por error se cargó más de uno.
+  const halfTimeEvent = useMemo(
+    () => earliestOfType(events, "half_time"),
     [events]
   );
-  const rivalEvents = useMemo(
-    () => events.filter((e) => e.side === "rival"),
+  const fullTimeEvent = useMemo(
+    () => earliestOfType(events, "full_time"),
     [events]
+  );
+
+  const displayEvents = useMemo(
+    () => events.filter((e) => !isHalfMarker(e.type)),
+    [events]
+  );
+  const ownEvents = useMemo(
+    () => displayEvents.filter((e) => e.side === "own"),
+    [displayEvents]
+  );
+  const rivalEvents = useMemo(
+    () => displayEvents.filter((e) => e.side === "rival"),
+    [displayEvents]
+  );
+
+  const ownHalves = useMemo(
+    () => splitByHalves(ownEvents, halfTimeEvent?.minute, fullTimeEvent?.minute),
+    [ownEvents, halfTimeEvent, fullTimeEvent]
+  );
+  const rivalHalves = useMemo(
+    () => splitByHalves(rivalEvents, halfTimeEvent?.minute, fullTimeEvent?.minute),
+    [rivalEvents, halfTimeEvent, fullTimeEvent]
   );
 
   function resetParticipants() {
@@ -124,14 +189,19 @@ export function LiveMatchPanel({
   }
 
   async function handleSubmit() {
-    const player = type === "comment" ? undefined : buildParticipant("main");
+    const marker = isHalfMarker(type);
+    const player = type === "comment" || marker ? undefined : buildParticipant("main");
     const playerOut = type === "substitution" ? buildParticipant("out") : undefined;
 
     if (type === "comment" && !note.trim()) {
       toast.error("Escribe un comentario.");
       return;
     }
-    if (type !== "comment" && !player) {
+    if (marker && !minute.trim()) {
+      toast.error("Ingresa el minuto.");
+      return;
+    }
+    if (type !== "comment" && !marker && !player) {
       toast.error(
         side === "own" ? "Elige un jugador de la plantilla." : "Ingresa el dorsal del rival."
       );
@@ -149,7 +219,7 @@ export function LiveMatchPanel({
     setSubmitting(true);
     try {
       const created = await addMatchEvent(teamId, match.id, {
-        side,
+        side: marker ? "own" : side,
         type,
         minute: minute.trim() ? Number(minute) : undefined,
         player,
@@ -182,6 +252,8 @@ export function LiveMatchPanel({
     () => Object.fromEntries(players.map((p) => [p.id, formatPlayerOption(p)])),
     [players]
   );
+
+  const isMarkerType = isHalfMarker(type);
 
   return (
     <div className="space-y-4">
@@ -216,28 +288,30 @@ export function LiveMatchPanel({
         <section className="space-y-3 rounded-xl border bg-card p-4">
           <p className="text-sm font-semibold text-muted-foreground">Agregar evento</p>
 
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setSide("own")}
-              className={cn(
-                "rounded-lg border p-2 text-sm font-medium",
-                side === "own" ? "border-primary bg-primary/10" : "border-border"
-              )}
-            >
-              Nuestro equipo
-            </button>
-            <button
-              type="button"
-              onClick={() => setSide("rival")}
-              className={cn(
-                "rounded-lg border p-2 text-sm font-medium",
-                side === "rival" ? "border-primary bg-primary/10" : "border-border"
-              )}
-            >
-              Rival
-            </button>
-          </div>
+          {!isMarkerType && (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setSide("own")}
+                className={cn(
+                  "rounded-lg border p-2 text-sm font-medium",
+                  side === "own" ? "border-primary bg-primary/10" : "border-border"
+                )}
+              >
+                Nuestro equipo
+              </button>
+              <button
+                type="button"
+                onClick={() => setSide("rival")}
+                className={cn(
+                  "rounded-lg border p-2 text-sm font-medium",
+                  side === "rival" ? "border-primary bg-primary/10" : "border-border"
+                )}
+              >
+                Rival
+              </button>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label>Tipo</Label>
@@ -255,7 +329,7 @@ export function LiveMatchPanel({
             </Select>
           </div>
 
-          {type !== "comment" && (
+          {type !== "comment" && !isMarkerType && (
             <div className="space-y-1.5">
               <Label>{type === "substitution" ? "Entra" : "Jugador"}</Label>
               {side === "own" ? (
@@ -365,21 +439,99 @@ export function LiveMatchPanel({
           <p className="text-sm text-muted-foreground">Cargando...</p>
         ) : events.length === 0 ? (
           <p className="text-sm text-muted-foreground">Todavía no hay eventos cargados.</p>
+        ) : !halfTimeEvent && !fullTimeEvent ? (
+          <EventGrid own={ownEvents} rival={rivalEvents} canEdit={canEdit} onRemove={handleRemove} playersById={playersById} />
         ) : (
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              {ownEvents.map((event) => (
-                <EventRow key={event.id} event={event} canEdit={canEdit} onRemove={handleRemove} playersById={playersById} />
-              ))}
-            </div>
-            <div className="space-y-2">
-              {rivalEvents.map((event) => (
-                <EventRow key={event.id} event={event} canEdit={canEdit} onRemove={handleRemove} playersById={playersById} align="right" />
-              ))}
-            </div>
+          <div className="space-y-3">
+            <EventGrid own={ownHalves.first} rival={rivalHalves.first} canEdit={canEdit} onRemove={handleRemove} playersById={playersById} />
+            {halfTimeEvent && (
+              <HalfDivider
+                label="Entretiempo"
+                minute={halfTimeEvent.minute}
+                canEdit={canEdit}
+                onRemove={() => handleRemove(halfTimeEvent.id)}
+              />
+            )}
+            {(ownHalves.second.length > 0 || rivalHalves.second.length > 0 || !fullTimeEvent) && (
+              <EventGrid own={ownHalves.second} rival={rivalHalves.second} canEdit={canEdit} onRemove={handleRemove} playersById={playersById} />
+            )}
+            {fullTimeEvent && (
+              <HalfDivider
+                label="Fin del partido"
+                minute={fullTimeEvent.minute}
+                canEdit={canEdit}
+                onRemove={() => handleRemove(fullTimeEvent.id)}
+              />
+            )}
+            {(ownHalves.extra.length > 0 || rivalHalves.extra.length > 0) && (
+              <EventGrid own={ownHalves.extra} rival={rivalHalves.extra} canEdit={canEdit} onRemove={handleRemove} playersById={playersById} />
+            )}
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+function EventGrid({
+  own,
+  rival,
+  canEdit,
+  onRemove,
+  playersById,
+}: {
+  own: import("@/types").MatchEvent[];
+  rival: import("@/types").MatchEvent[];
+  canEdit: boolean;
+  onRemove: (id: string) => void;
+  playersById: Map<string, Player>;
+}) {
+  if (own.length === 0 && rival.length === 0) return null;
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <div className="space-y-2">
+        {own.map((event) => (
+          <EventRow key={event.id} event={event} canEdit={canEdit} onRemove={onRemove} playersById={playersById} />
+        ))}
+      </div>
+      <div className="space-y-2">
+        {rival.map((event) => (
+          <EventRow key={event.id} event={event} canEdit={canEdit} onRemove={onRemove} playersById={playersById} align="right" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function HalfDivider({
+  label,
+  minute,
+  canEdit,
+  onRemove,
+}: {
+  label: string;
+  minute: number | undefined;
+  canEdit: boolean;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-px flex-1 bg-border" />
+      <span className="flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+        {label}
+        {minute != null ? ` · ${minute}'` : ""}
+        {canEdit && (
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label={`Quitar marca de ${label.toLowerCase()}`}
+            className="hover:text-destructive"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        )}
+      </span>
+      <div className="h-px flex-1 bg-border" />
     </div>
   );
 }

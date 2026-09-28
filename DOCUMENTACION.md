@@ -347,7 +347,9 @@ Pensada para que quien no pudo ir a la cancha siga el partido en tiempo real des
 **Modelo de datos — una sola tabla, `match_events`** (`0011_match_events.sql`): cada fila es un evento, de nuestro equipo o del rival.
 ```ts
 type EventSide = "own" | "rival";
-type MatchEventType = "goal" | "yellow_card" | "red_card" | "substitution" | "comment";
+type MatchEventType =
+  | "goal" | "yellow_card" | "red_card" | "substitution" | "comment"
+  | "half_time" | "full_time"; // marcadores de fin de tiempo, ver más abajo
 
 interface EventParticipant {
   playerId?: string; // solo side="own": referencia a la plantilla propia
@@ -371,6 +373,9 @@ Del rival no hay plantilla cargada en el sistema — por eso, a diferencia de nu
 **Actualización en vivo**: `src/hooks/use-match-events.ts` carga la bitácora del partido y se suscribe a un canal de **Supabase Realtime** (Postgres Changes) filtrado por `match_id` — un INSERT/DELETE en `match_events` desde cualquier dispositivo aparece solo en la pantalla de quien la tenga abierta, sin recargar. Requirió habilitar la tabla en la publicación `supabase_realtime` (parte de la migración `0011`).
 
 **Diseño simplificado a propósito** (a pedido del usuario, sobre la referencia de un "match center" real): solo el escudo propio centrado arriba (no hay escudo del rival cargado en el sistema), sin número de posición en la tabla, con los dos nombres de equipo en mayúsculas y el marcador entre ellos. Debajo, dos columnas de eventos — propios a la izquierda, del rival a la derecha — cada una en el orden en que se cargaron.
+
+**Separador de Primer/Segundo tiempo** (migración `0013_match_half_markers.sql`): dos tipos de evento adicionales, `half_time` (fin del primer tiempo) y `full_time` (fin del partido), que no son "de nuestro equipo" ni "del rival" — se guardan con `side="own"` por convención (la columna es obligatoria) pero se excluyen de las dos columnas y en su lugar dibujan una línea separadora centrada ("Entretiempo · min X" / "Fin del partido · min Y") entre los tramos de la bitácora. Al elegir uno de estos dos tipos en "Agregar evento", el formulario oculta el selector Nuestro equipo/Rival y el de jugador — solo pide el minuto (obligatorio) y una nota opcional. Si no se cargó ninguno de los dos marcadores, la vista se comporta igual que antes (una sola grilla de dos columnas, sin separadores). `computeMinutesPlayed()` (sección 5.11) ya tomaba el minuto máximo de *cualquier* evento para estimar el fin del partido, así que un `full_time` cargado con tiempo agregado (ej. minuto 65) mejora automáticamente esa estimación sin cambios de código adicionales.
+- Probado en el navegador: el desplegable "Tipo" muestra las dos opciones nuevas, el formulario oculta correctamente lado/jugador al elegirlas, y el envío sin la migración corrida devuelve el error esperado de constraint (capturado con un toast, sin romper la pantalla) — confirma que el camino de error también está cubierto mientras la migración no se haya corrido en producción.
 
 **Permisos**: puede agregar y quitar eventos quien tenga `canLogLiveEvents` (store `useAuthStore`) — DT/Capitán, admin vía el switcher (si no está previsualizando como jugador), o el rol **asistente** (sección 5.17, agregado después específicamente para esto); el resto de la plantilla solo mira. RLS: `match_events_select_team` (todo el equipo lee) e insert/update/delete restringidos a `can_log_match_events()` (`current_role() in ('dt','admin','assistant')` — más acotada que `is_dt_or_admin()`, que se sigue usando para todo lo demás).
 
@@ -582,6 +587,7 @@ El jugador, una vez dentro, reclama su número de camiseta de la plantilla (o cr
 - `0010_notify_pending_only.sql` — policy `profiles_select_team_dt`, para que el DT pueda cruzar cada suscripción push con el jugador dueño de esa sesión y notificar solo a quien tiene la asistencia pendiente. Ver sección 5.18.
 - `0011_match_events.sql` — tabla `match_events` (Fase 8, bitácora en vivo del partido): goles, tarjetas, cambios y comentarios, de nuestro equipo o del rival. Migra además los datos históricos de `match_goals`/`match_cards` a la tabla nueva. Ver sección 5.16.
 - `0012_assistant_role.sql` — nuevo rol `assistant` en `profiles.role`, columna `teams.assistant_code`, función `can_log_match_events()` (más acotada que `is_dt_or_admin()`, solo gobierna `match_events`) y `claim_team` extendida para reconocer el código nuevo. Ver sección 5.17.
+- `0013_match_half_markers.sql` — agrega `half_time` y `full_time` al check constraint de `match_events.type`, para marcar el fin del primer y segundo tiempo en la bitácora en vivo. Ver sección 5.16.
 
 `teams` **no tiene policy de select** a propósito: la única forma de leer/usar los códigos es a través de las funciones `claim_team`/`get_my_team`, así un código incorrecto no revela nada de la tabla.
 

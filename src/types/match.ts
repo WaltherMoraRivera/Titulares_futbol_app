@@ -61,7 +61,14 @@ export interface MatchCard {
  * nombre — por eso `player`/`playerOut` son "quien sea que se conozca",
  * no un jugador obligatorio de la base. */
 export type EventSide = "own" | "rival";
-export type MatchEventType = "goal" | "yellow_card" | "red_card" | "substitution" | "comment";
+export type MatchEventType =
+  | "goal"
+  | "yellow_card"
+  | "red_card"
+  | "substitution"
+  | "comment"
+  | "half_time"
+  | "full_time";
 
 export interface EventParticipant {
   /** Solo si side === "own": referencia a la plantilla propia. */
