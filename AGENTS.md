@@ -47,7 +47,7 @@ Mensajes de commit: en español, ASCII sin tildes (como el historial), primera l
 
 No hay service-role key ni CLI de Supabase con sesión en este entorno. **No puedes aplicar cambios de esquema/RLS tú mismo.**
 
-- Crea la migración como archivo en `supabase/migrations/` con el siguiente número (la última es `0013_match_half_markers.sql`, así que la próxima es `0014_...`), con un comentario inicial que explique el porqué.
+- Crea la migración como archivo en `supabase/migrations/` con el siguiente número (la última es `0014_flexible_match_results.sql`, así que la próxima es `0015_...`), con un comentario inicial que explique el porqué.
 - Entrégale al usuario el SQL en el chat para que lo pegue en el SQL Editor de Supabase, y **recuérdaselo antes de que pruebe** cualquier cosa que dependa de él. Las migraciones se corren después del deploy, nunca antes: la UI debe degradar con gracia si la tabla/columna aún no existe.
 - No guardes secretos en el repo. `.env.local` (ignorado por git) ya tiene las claves públicas de Supabase y las llaves VAPID; nunca las imprimas ni las commitees.
 
@@ -66,7 +66,7 @@ Tras cada feature o cambio de comportamiento, actualiza `DOCUMENTACION.md` en su
 - **Auth sin usuario/contraseña**: el usuario ingresa un código de equipo (`claim_team` RPC) sobre una sesión anónima de Supabase. Los códigos están en `teams` (`player_code`, `dt_code`, `admin_code`, `assistant_code`); los valores vigentes figuran en `DOCUMENTACION.md` (sección 8).
 - **Roles**: `TeamRole = "player" | "dt" | "admin" | "assistant"` en `src/hooks/use-auth.ts`. `admin` puede previsualizar como `player` o `dt` con el switcher. El rol **efectivo** del asistente se resuelve siempre como `"player"` (hereda todos los chequeos `role === "dt"` sin tocarlos) y la única capacidad extra es el booleano `canLogLiveEvents`, que solo lee la pestaña "En vivo". RLS usa funciones `security definer` (`current_team_id()`, `current_role()`, `is_dt_or_admin()`, `can_log_match_events()`).
 - **Estado**: un store Zustand por dominio (`useAuthStore`, `usePlayersStore`, `useMatchesStore`, `usePushNotificationsStore`, `useInstallPromptStore`…) y servicios en `src/services/supabase-*-service.ts`.
-- **Bitácora en vivo**: `match_events` (event sourcing: goles, tarjetas, cambios, comentarios y los marcadores `half_time`/`full_time`). El marcador **nunca se tipea**: siempre se calcula con `computeScoreFromEvents`. Minutos jugados con `computeMinutesPlayed` (30' por tiempo; partidos sin ningún cambio cargado quedan fuera de la estadística, decisión del usuario). Realtime por Postgres Changes en `use-match-events.ts`.
+- **Bitácora en vivo**: `match_events` (event sourcing: goles, tarjetas, cambios, comentarios y los marcadores `half_time`/`full_time`). El marcador siempre se calcula con `computeScoreFromEvents`; admin puede ingresar el resultado mediante una RPC transaccional que ajusta esos mismos eventos, con goleador y minuto opcionales (5.21). Minutos jugados con `computeMinutesPlayed` (30' por tiempo; partidos sin ningún cambio cargado quedan fuera de la estadística, decisión del usuario). Realtime por Postgres Changes en `use-match-events.ts`.
 - **Push**: ruta `src/app/api/notify-match/route.ts` con `web-push` y llaves VAPID; solo DT/admin pueden dispararla (autorización vía RLS con el token de quien llama, no con service role).
 
 ## Cómo probar en el navegador

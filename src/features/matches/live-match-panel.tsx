@@ -145,7 +145,7 @@ export function LiveMatchPanel({
   );
 
   const displayEvents = useMemo(
-    () => events.filter((e) => !isHalfMarker(e.type)),
+    () => events.filter((e) => !isHalfMarker(e.type) && !(e.type === "goal" && e.minute == null)),
     [events]
   );
   const ownEvents = useMemo(
@@ -156,6 +156,7 @@ export function LiveMatchPanel({
     () => displayEvents.filter((e) => e.side === "rival"),
     [displayEvents]
   );
+  const untimedGoals = events.filter((event) => event.type === "goal" && event.minute == null);
 
   const ownHalves = useMemo(
     () => splitByHalves(ownEvents, halfTimeEvent?.minute, fullTimeEvent?.minute),
@@ -276,11 +277,11 @@ export function LiveMatchPanel({
           />
         </div>
         <p className="mt-2 flex items-center justify-center gap-2 text-lg font-bold">
-          <span className="uppercase">{teamName ?? "Nuestro equipo"}</span>
+          <span className="min-w-0 flex-1 break-words uppercase">{teamName ?? "Nuestro equipo"}</span>
           <span>{teamScore}</span>
           <span className="text-muted-foreground">-</span>
           <span>{opponentScore}</span>
-          <span className="uppercase">{match.opponent || "Rival"}</span>
+          <span className="min-w-0 flex-1 break-words uppercase">{match.opponent || "Rival"}</span>
         </p>
       </section>
 
@@ -439,6 +440,8 @@ export function LiveMatchPanel({
           <p className="text-sm text-muted-foreground">Cargando...</p>
         ) : events.length === 0 ? (
           <p className="text-sm text-muted-foreground">Todavía no hay eventos cargados.</p>
+        ) : ownEvents.length === 0 && rivalEvents.length === 0 && !halfTimeEvent && !fullTimeEvent ? (
+          <p className="text-sm text-muted-foreground">Sin eventos con minuto registrado.</p>
         ) : !halfTimeEvent && !fullTimeEvent ? (
           <EventGrid own={ownEvents} rival={rivalEvents} canEdit={canEdit} onRemove={handleRemove} playersById={playersById} />
         ) : (
@@ -469,6 +472,13 @@ export function LiveMatchPanel({
           </div>
         )}
       </section>
+      {loaded && untimedGoals.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="text-sm font-semibold text-muted-foreground">Goles sin minuto registrado</h3>
+          <EventGrid own={untimedGoals.filter((goal) => goal.side === "own")} rival={untimedGoals.filter((goal) => goal.side === "rival")}
+            canEdit={canEdit} onRemove={handleRemove} playersById={playersById} />
+        </section>
+      )}
     </div>
   );
 }
@@ -549,7 +559,7 @@ function EventRow({
   playersById: Map<string, Player>;
   align?: "left" | "right";
 }) {
-  const who = formatParticipant(event.player, playersById);
+  const who = formatParticipant(event.player, playersById) || (event.type === "goal" ? "Sin asignar" : "");
   const whoOut = formatParticipant(event.playerOut, playersById);
 
   return (

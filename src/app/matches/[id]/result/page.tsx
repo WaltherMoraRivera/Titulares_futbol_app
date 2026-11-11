@@ -10,7 +10,8 @@ import { useAuthStore } from "@/hooks/use-auth";
 import { usePlayersStore } from "@/hooks/use-players";
 import { useMatchesStore } from "@/hooks/use-matches";
 import { useMatchEvents } from "@/hooks/use-match-events";
-import { fetchMatchResult, saveMatchResult } from "@/services/supabase-match-service";
+import { MatchResultEditor } from "@/features/matches/match-result-editor";
+import { fetchMatchEvents, fetchMatchResult, saveMatchResult } from "@/services/supabase-match-service";
 import { computeScoreFromEvents } from "@/utils/match-score";
 import { getDisplayName } from "@/utils/player-display";
 import { EventParticipant, MatchResult, Player } from "@/types";
@@ -39,15 +40,17 @@ export default function MatchResultPage({
 }) {
   const { id } = use(params);
 
-  const { loaded: authLoaded, teamId, teamName, role, load: loadAuth } = useAuthStore();
+  const { loaded: authLoaded, teamId, teamName, role, actualRole, load: loadAuth } = useAuthStore();
   const { players, loaded: playersLoaded, load: loadPlayers } = usePlayersStore();
   const { matches, loaded: matchesLoaded, load: loadMatches } = useMatchesStore();
-  const { events, loaded: eventsLoaded } = useMatchEvents(id);
+  const { events, loaded: eventsLoaded, setEvents, error: eventsError } = useMatchEvents(id);
 
   const [result, setResult] = useState<MatchResult | null>(null);
   const [resultLoaded, setResultLoaded] = useState(false);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [resultError, setResultError] = useState(false);
 
   const isDt = role === "dt";
   const match = matches.find((m) => m.id === id);
@@ -68,6 +71,10 @@ export default function MatchResultPage({
     fetchMatchResult(id).then((data) => {
       setResult(data);
       setNotes(data?.notes ?? "");
+      setResultError(false);
+      setResultLoaded(true);
+    }).catch(() => {
+      setResultError(true);
       setResultLoaded(true);
     });
   }, [authLoaded, teamId, id]);
@@ -129,24 +136,41 @@ export default function MatchResultPage({
         </h1>
       </header>
 
+      {!loading && (eventsError || resultError) && <p role="alert" className="mb-4 text-sm text-destructive">{eventsError || "No se pudo cargar el resultado. Recarga la página antes de editarlo."}</p>}
+
+      {!loading && actualRole === "admin" && isDt && !eventsError && !resultError && !editing && (
+        <Button className="mb-4 w-full" onClick={() => setEditing(true)}>Editar resultado y goleadores</Button>
+      )}
+      {editing && actualRole === "admin" && isDt && (
+        <MatchResultEditor matchId={id} teamName={teamName ?? "Nuestro equipo"} opponent={match?.opponent || "Rival"}
+          events={events} result={result} notes={notes} players={players} onCancel={() => setEditing(false)}
+          onSaved={(updated) => {
+            setResult(updated);
+            setNotes(updated.notes ?? "");
+            setEditing(false);
+            useMatchesStore.setState((state) => ({ results: [...state.results.filter((item) => item.matchId !== id), updated] }));
+            fetchMatchEvents(id).then(setEvents).catch(() => toast.error("Resultado guardado. Recarga la página para ver los goles actualizados."));
+          }} />
+      )}
+
       {!loading && !isDt && events.length === 0 && !result && (
         <p className="py-8 text-center text-sm text-muted-foreground">
           El DT todavía no cargó nada de este partido.
         </p>
       )}
 
-      {!loading && (isDt || result || events.length > 0) && (
+      {!loading && !editing && (isDt || result || events.length > 0) && (
         <>
           <section className="mb-6 rounded-xl border bg-card p-4 text-center">
             <p className="mb-2 text-xs font-medium text-muted-foreground">
               {result ? "Resultado final" : "Marcador en curso — todavía sin finalizar"}
             </p>
-            <p className="text-2xl font-bold uppercase">
+            <p className="break-words text-2xl font-bold uppercase">
               {teamName ?? "Nuestro equipo"} {teamScore} — {opponentScore}{" "}
               {match?.opponent || "Rival"}
             </p>
             <p className="mt-2 text-xs text-muted-foreground">
-              Se carga desde la pestaña &quot;En vivo&quot; del partido.
+              Se registra desde &quot;En vivo&quot; o mediante la edición del administrador.
             </p>
 
             {isDt && (
@@ -168,7 +192,7 @@ export default function MatchResultPage({
             )}
 
             {isDt && (
-              <Button className="mt-4 w-full" onClick={handleFinish} disabled={saving}>
+              <Button className="mt-4 w-full" onClick={handleFinish} disabled={saving || !!eventsError || resultError}>
                 {result ? "Actualizar resultado final" : "Marcar como finalizado"}
               </Button>
             )}
@@ -191,7 +215,7 @@ export default function MatchResultPage({
                     >
                       <span className="text-sm">⚽</span>
                       <p className="min-w-0 flex-1 truncate text-sm font-medium">
-                        {formatParticipant(goal.player, playersById) || "?"}
+                        {formatParticipant(goal.player, playersById) || "Sin asignar"}
                         {goal.minute != null ? ` · ${goal.minute}'` : ""}
                         {goal.side === "rival" ? ` (${match?.opponent || "Rival"})` : ""}
                       </p>

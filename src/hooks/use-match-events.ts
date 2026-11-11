@@ -15,6 +15,7 @@ import { MatchEvent } from "@/types";
 export function useMatchEvents(matchId: string | undefined) {
   const [events, setEvents] = useState<MatchEvent[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!matchId) return;
@@ -25,12 +26,14 @@ export function useMatchEvents(matchId: string | undefined) {
       .then((rows) => {
         if (cancelled) return;
         setEvents(rows);
+        setError(null);
         setLoaded(true);
       })
       .catch((err) => {
         console.error("No se pudo cargar la bitácora del partido:", err);
         if (cancelled) return;
         setEvents([]);
+        setError("No se pudo cargar la bitácora. Recarga la página antes de editar el resultado.");
         setLoaded(true);
       });
 
@@ -55,6 +58,14 @@ export function useMatchEvents(matchId: string | undefined) {
       )
       .on(
         "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "match_events", filter: `match_id=eq.${matchId}` },
+        (payload) => {
+          const event = rowToMatchEvent(payload.new as MatchEventRow);
+          setEvents((prev) => prev.map((item) => item.id === event.id ? event : item));
+        }
+      )
+      .on(
+        "postgres_changes",
         {
           event: "DELETE",
           schema: "public",
@@ -74,5 +85,5 @@ export function useMatchEvents(matchId: string | undefined) {
     };
   }, [matchId]);
 
-  return { events, loaded, setEvents };
+  return { events, loaded, setEvents, error };
 }

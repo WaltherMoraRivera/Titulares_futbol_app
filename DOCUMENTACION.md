@@ -62,7 +62,7 @@ formacion-ya/
 │  │  │     ├─ board/
 │  │  │     │  ├─ page.tsx       # formación general del partido (Supabase)
 │  │  │     │  └─ [playerId]/page.tsx  # mapa táctico individual de ese jugador (Fase 7)
-│  │  │     └─ result/page.tsx   # resumen de resultado (solo lectura) + notas del DT
+│  │  │     └─ result/page.tsx   # resultado + notas del DT; edicion flexible exclusiva de admin (5.21)
 │  │  ├─ stats/page.tsx          # estadísticas de temporada, incluidos minutos jugados (Fase 5, Supabase)
 │  │  ├─ api/notify-match/route.ts  # ruta de servidor: envía las notificaciones push (sección 5.18)
 │  │  ├─ attendance/page.tsx     # asistencia "del día" para armar formación (todavía Local Storage)
@@ -74,7 +74,7 @@ formacion-ya/
 │  ├─ components/ui/             # componentes shadcn/ui (base-ui)
 │  ├─ features/                  # componentes con lógica específica de dominio
 │  │  ├─ players/                # formulario, fila, importación, reclamar/registrarse (claim-or-register)
-│  │  ├─ matches/                 # formulario de partido, marcador en la lista, bitácora en vivo, control de notificaciones
+│  │  ├─ matches/                 # formulario de partido, editor de resultado/goleadores, bitácora en vivo, notificaciones
 │  │  ├─ attendance/              # fila de asistencia
 │  │  ├─ board/                   # cancha, banca, tarjeta de jugador, export, compartir, zonas de influencia, mapa táctico individual
 │  │  ├─ history/                 # tarjeta de historial
@@ -87,7 +87,12 @@ formacion-ya/
 │  ├─ storage/                    # capa de abstracción de persistencia (Local Storage)
 │  ├─ types/                      # tipos de dominio (Player, FormationTemplate, MatchLineup, MatchEvent...)
 │  └─ utils/                      # helpers puros (colores, presets, validación, CSV, export de imagen,
-│                                  # marcador/minutos jugados a partir de la bitácora en vivo)
+│                                  # marcador/minutos jugados y borrador de resultado flexible)
+├─ supabase/
+│  ├─ migrations/                # esquema, permisos y RPC; aplicacion manual
+│  └─ tests/                     # pruebas de la RPC en PostgreSQL temporal (PGlite)
+├─ tests/                        # pruebas de navegador con Supabase simulado
+└─ docs/superpowers/              # disenos y planes aprobados
 ```
 
 ### Persistencia: estado de la migración a Supabase
@@ -247,9 +252,9 @@ Todavía no conectado con el constructor de formación (`/board`): agendar un pa
 - El botón "Compartir" genera la imagen (mismo `ExportView`/`captureElementAsBlob` de `/board`) usando directamente la fecha/rival/hora ya guardados en el partido, sin volver a pedirlos como en `/board` (ahí sí hace falta el diálogo, porque esos datos no existen todavía).
 - Probado de punta a punta contra Supabase real: DT arma un 4-3-3 con asistentes confirmados, agrega instrucciones a un jugador, manda a otro a la banca, comparte/descarga la imagen; un jugador logueado ve la misma formación en modo solo lectura, sin poder arrastrar ni editar.
 
-### 5.10 Resultado post-partido (`/matches/[id]/result`) — Fase 4 (reestructurada en Fase 8, ver 5.13)
+### 5.10 Resultado post-partido (`/matches/[id]/result`) — Fase 4 (reestructurada en Fase 8, ver 5.16)
 
-- Muestra el resumen de solo lectura de un partido: marcador (calculado desde la bitácora en vivo, sección 5.13 — ya no se tipea a mano), goleadores y tarjetas, más notas libres del DT.
+- Muestra el resumen de un partido: marcador calculado desde los eventos de gol (sección 5.16), goleadores y tarjetas, más notas libres del DT. Admin puede ingresar y corregir el resultado sin goleadores ni minutos mediante el editor de la sección 5.21.
 - **DT/Capitán**: edita las notas y tiene un botón "Marcar como finalizado" / "Actualizar resultado final" que guarda el marcador actual (recalculado desde `match_events`) en `match_results`, marcando el partido como terminado.
 - **Jugador**: ve lo mismo en texto plano, sin ningún control de edición. Toda la carga de goles/tarjetas/cambios pasó a hacerse desde la pestaña "En vivo" del detalle del partido (sección 5.13) — esta pantalla ya no tiene formularios propios para agregarlos.
 - Usa `match_results` (`0005_match_results.sql`, sin cambios de esquema) para el marcador guardado/notas, y `match_events` (`0011_match_events.sql`) como fuente de goleadores/tarjetas.
@@ -368,7 +373,7 @@ interface MatchEvent {
 ```
 Del rival no hay plantilla cargada en el sistema — por eso, a diferencia de nuestros jugadores (que se eligen de un desplegable), un evento del rival pide **dorsal obligatorio y nombre opcional**, para cualquier tipo de evento (gol, tarjeta o cambio), no solo cambios: es lo único que razonablemente se puede anotar mirando la cancha.
 
-**Unificación con el resultado post-partido**: el marcador ya no se tipea a mano en ningún lado — `computeScoreFromEvents()` (`src/utils/match-score.ts`) lo calcula contando los eventos `type="goal"` por lado, tanto en la pestaña "En vivo" como en el resumen de `/matches/[id]/result` (sección 5.10). `match_goals`/`match_cards` (Fase 4) quedan en la base con sus datos históricos pero ya no se escriben más — la migración `0011` copió esas filas existentes a `match_events` (siempre `side="own"`, no existía carga de eventos del rival antes) para que seguir viéndose en la bitácora unificada. `/stats` (sección 5.11) también pasó a agregar desde `match_events`.
+**Unificación con el resultado post-partido**: `computeScoreFromEvents()` (`src/utils/match-score.ts`) calcula el marcador contando los eventos `type="goal"` por lado, tanto en "En vivo" como en `/matches/[id]/result` (sección 5.10). La edición administrativa (5.21) agrega o quita esos mismos eventos; no crea otro contador. Los goles sin minuto se muestran en un bloque separado, "Goles sin minuto registrado", sin atribuirlos a un tiempo. `match_goals`/`match_cards` (Fase 4) quedan en la base con sus datos históricos pero ya no se escriben más — la migración `0011` copió esas filas existentes a `match_events` (siempre `side="own"`, no existía carga de eventos del rival antes). `/stats` (sección 5.11) también agrega desde `match_events`.
 
 **Actualización en vivo**: `src/hooks/use-match-events.ts` carga la bitácora del partido y se suscribe a un canal de **Supabase Realtime** (Postgres Changes) filtrado por `match_id` — un INSERT/DELETE en `match_events` desde cualquier dispositivo aparece solo en la pantalla de quien la tenga abierta, sin recargar. Requirió habilitar la tabla en la publicación `supabase_realtime` (parte de la migración `0011`).
 
@@ -425,6 +430,21 @@ El navegador solo ofrece instalar la PWA automáticamente **una vez** (y nunca e
   - En cualquier otro caso (ya se descartó el aviso antes, o el navegador no lo soporta): ofrece el `.apk` del repo como alternativa de descarga manual.
   - Si la app ya está instalada (modo standalone): el botón cambia a **"Buscar actualizaciones"**, que fuerza un chequeo del service worker y recarga.
 - Evaluado con el usuario si perseguir además publicar en el App Store real (Apple Developer Program, ~US$99/año + Xcode + revisión) — se descartó por ahora a favor de esta vía gratuita.
+
+---
+
+### 5.21 Resultado flexible y goleadores posteriores (solo admin)
+
+- En `/matches/[id]/result`, **"Editar resultado y goleadores"** permite guardar el resultado sin reconstruir el minuto a minuto. Disponible también con eventos existentes. Solo aparece para `actualRole === "admin"` en vista DT/Capitán; DT, jugador y asistente conservan sus controles anteriores.
+- Dos marcadores enteros, de 0 a 99 por equipo; guardar registra el resultado final, incluido 0-0. Cada gol propio ofrece un selector de jugador o **"Sin asignar"**. Un jugador puede tener varios goles y su asignación se puede cambiar o quitar después, sin aumentar el marcador. Los goles del rival pueden quedar sin identificar. No se exige ni inventa el minuto.
+- Aumentar el marcador agrega goles sin asignar. Reducirlo quita primero goles sin protagonista; si no alcanza, obliga a seleccionar los goles identificados que se eliminarán. El formulario muestra las eliminaciones pendientes y **Cancelar** descarta todo el borrador sin escribir.
+- Los goles muestran su minuto y nota conocidos para distinguir varios del mismo jugador. Si el goleador fue eliminado de la plantilla, aparece "Jugador no disponible" y su referencia histórica se conserva; no se permiten nuevas asignaciones a un jugador que ya no existe. Ante un conflicto, el aviso pide recargar la página antes de volver a editar.
+- **Modelo de datos:** se reutilizan `match_events` y `match_results`, sin tablas ni columnas nuevas. Un gol sin protagonista tiene `player = null`, y sin minuto, `minute = null`. Los goles conservados mantienen ID, minuto y nota. Solo los propios con `player.playerId` identificado suman a un jugador en estadísticas; todos cuentan para el equipo.
+- **Permisos y guardado:** `0014_flexible_match_results.sql` agrega la RPC `save_flexible_match_result`, con `security definer`, `search_path` explícito y permiso de ejecución solo para `authenticated`. Comprueba rol real admin, equipo del partido, jugadores y goles. Aplica los cambios de goles y el resultado final en una sola transacción. Compara los goles originales y `match_results.updated_at` para rechazar un borrador desactualizado sin guardar parcialmente. El bloqueo breve de tablas prioriza integridad en este equipo amateur; si el sistema crece a muchos equipos con escrituras frecuentes, conviene coordinar todos los escritores por partido.
+- **Lectura en vivo:** el hook ahora procesa UPDATE para reflejar los cambios de goleador. La migración activa `REPLICA IDENTITY FULL`, necesario para filtrar eliminaciones por partido ([documentación oficial de Supabase](https://supabase.com/docs/guides/realtime/postgres-changes)). Los goles sin minuto se presentan aparte de los tiempos, con "Sin asignar" cuando no hay protagonista.
+- Sin la migración, el editor conserva el borrador y explica que falta aplicar `0014`; una falla de lectura de eventos o resultado impide abrirlo para evitar sobrescribir desde datos incompletos. La migración se aplica manualmente **después del deploy y antes de probar el guardado real**.
+- Probado en PostgreSQL temporal (PGlite): 3-2 sin protagonistas/minutos, asignación repetida al mismo jugador sin duplicar goles, conservación de IDs/minutos/notas y otros eventos, 0-0, eliminación explícita, permisos de la RPC, pertenencia al equipo, snapshots desactualizados y rollback ante un fallo simulado. Tipos y build de producción limpios. Las pruebas móviles con Supabase simulado pasan en 375×812 y 320×568: guardado, goleadores, reducciones, cancelación, lectores, permisos, errores y ausencia de desbordamiento horizontal. La prueba contra Supabase real queda pendiente de aplicar la migración; no se alteraron partidos reales.
+- Pruebas reproducibles (Node 24): `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test src/utils/match-result-draft.test.mjs`; `node --test supabase/tests/flexible-match-results.test.mjs` con `PGLITE_MODULE` apuntando al módulo PGlite instalado temporalmente; y `node tests/match-result-ui.mjs` con el servidor local abierto, `PLAYWRIGHT_MODULE` apuntando al módulo Playwright temporal y, si cambia el puerto, `TEST_BASE_URL`. Estas herramientas de QA no son dependencias de la aplicación. El script de navegador intercepta las peticiones a Supabase y usa datos simulados.
 
 ---
 
@@ -588,6 +608,7 @@ El jugador, una vez dentro, reclama su número de camiseta de la plantilla (o cr
 - `0011_match_events.sql` — tabla `match_events` (Fase 8, bitácora en vivo del partido): goles, tarjetas, cambios y comentarios, de nuestro equipo o del rival. Migra además los datos históricos de `match_goals`/`match_cards` a la tabla nueva. Ver sección 5.16.
 - `0012_assistant_role.sql` — nuevo rol `assistant` en `profiles.role`, columna `teams.assistant_code`, función `can_log_match_events()` (más acotada que `is_dt_or_admin()`, solo gobierna `match_events`) y `claim_team` extendida para reconocer el código nuevo. Ver sección 5.17.
 - `0013_match_half_markers.sql` — agrega `half_time` y `full_time` al check constraint de `match_events.type`, para marcar el fin del primer y segundo tiempo en la bitácora en vivo. Ver sección 5.16.
+- `0014_flexible_match_results.sql` — RPC transaccional exclusiva de admin para editar resultado/goleadores sin minutos, reutilizando eventos de gol, con control de concurrencia y `REPLICA IDENTITY FULL` para las eliminaciones en vivo. Ver sección 5.21. Aplicación manual después del deploy.
 
 `teams` **no tiene policy de select** a propósito: la única forma de leer/usar los códigos es a través de las funciones `claim_team`/`get_my_team`, así un código incorrecto no revela nada de la tabla.
 
@@ -614,6 +635,8 @@ Probado de punta a punta: login con código de jugador, listado de plantilla, re
 
 **Completado:** login por código de equipo con roles, incluido autoregistro de jugadores nuevos sin depender del DT (Fase 0), gestión de jugadores sobre Supabase con alias (siempre visible junto al nombre, sin casilla que elegir) y permisos por rol, partidos agendados con asistencia anticipada y notificaciones push a quien tiene la asistencia pendiente (Fase 2), formación + instrucciones tácticas atadas a cada partido agendado con vista editable para el DT y de solo lectura para el jugador (Fase 3, sobre Supabase), bitácora en vivo del partido con goles/tarjetas/cambios/comentarios en tiempo real vía Supabase Realtime, marcador calculado solo (Fase 8), resumen de resultado post-partido alimentado por esa misma bitácora con notas del DT (Fase 4, sobre Supabase), estadísticas de temporada agregadas por jugador —incluidos los minutos jugados— y récord del equipo (Fase 5, sobre Supabase), zonas de influencia visuales sobre la cancha en ambas pantallas de formación (Fase 6), pizarra táctica separada en formación general del equipo y mapa táctico individual por jugador (compañeros curados tocando la cancha, líneas de conexión, flechas y zonas libres con color verde/rojo, y deshacer por jugador) (Fase 7, sobre Supabase), cuenta admin con switcher de vista Jugador/DT-Capitán y rol asistente para apoyar la carga en vivo, "Mi perfil" como punto de entrada único a los propios datos, constructor de formación local con drag & drop (con `DragOverlay` para que la tarjeta arrastrada no se recorte ni desaparezca, banca con desplazamiento lateral), compartir por imagen con Web Share API (incluye instrucciones tácticas), historial, animaciones, responsive, PWA instalable con botón manual + guía dedicada para iPhone, tema visual oscuro con paleta del escudo del equipo, despliegue en producción con HTTPS + auto-deploy desde GitHub, paquete `.apk` para instalación directa en Android.
 
+**Ampliación de resultado post-partido:** editor flexible de marcador y goleadores exclusivo de admin (5.21), implementado y verificado localmente; activación pendiente de la migración manual `0014` y validación del Preview.
+
 ### Roadmap: de "ver la formación" a plataforma del equipo
 
 Visión a futuro: que la app reemplace a WhatsApp como canal central del equipo — partidos agendados, asistencia confirmada por cada jugador desde su propio teléfono, formación e instrucciones tácticas visibles para todos el día del partido, y registro histórico de resultados/goleadores/tarjetas. Fases propuestas:
@@ -622,7 +645,7 @@ Visión a futuro: que la app reemplace a WhatsApp como canal central del equipo 
 - **Fase 1 — Panel táctico (MVP)** ✅ completado — instrucciones por jugador, ver arriba.
 - **Fase 2 — Partidos agendados** ✅ completado — DT/capitán agenda partidos, todo el equipo marca/ve asistencia anticipada, ver arriba.
 - **Fase 3 — Vista del jugador** ✅ completado — el DT arma la formación e instrucciones tácticas de un partido agendado a partir de los asistentes confirmados, y cada jugador la ve (junto a sus propias instrucciones) en modo solo lectura el día del partido, ver sección 5.9.
-- **Fase 4 — Registro post-partido** ✅ completado — el DT carga marcador, goleadores, tarjetas y notas de cada partido; todo el equipo lo ve en modo solo lectura, ver sección 5.10.
+- **Fase 4 — Registro post-partido** ✅ completado — resultado derivado de eventos y notas del DT; ampliado con edición flexible de resultado/goleadores para admin sin exigir minutos (5.21, pendiente de activar con migración `0014`). Todo el equipo consulta el resultado, ver sección 5.10.
 - **Fase 5 — Estadísticas** ✅ completado — récord del equipo (G-E-P, goles a favor/en contra) y tabla de convocatorias/goles/tarjetas por jugador a lo largo de la temporada, ver sección 5.11.
 - **Fase 6 — Zonas de influencia** ✅ completado — overlay visual (degradé por jugador + líneas de cercanía) sobre la formación ya cargada, en `/board` y `/matches/[id]/board`; no hay datos reales de movimiento ni de pases, ver sección 5.12 para el detalle de esa decisión de alcance.
 - **Fase 7 — Pizarra táctica** ✅ completado — evolución propuesta por una auditoría externa (`Propustas/Mejoras tácticas app de fútbol.md`), reestructurada después en tres rondas a pedido del usuario: primero en dos pantallas separadas (`/matches/[id]/board` formación general sin dibujo, `/matches/[id]/board/[playerId]` mapa táctico individual); luego reemplazando las flechas automáticas por líneas de conexión neutras, agregando una herramienta de flechas con color (verde/rojo) y cambiando la selección de compañeros a selección directa tocando la cancha (con botones Confirmar/Editar compañeros); y finalmente cambiando las flechas de "tocar dos jugadores" a **dibujo completamente libre** en cualquier punto de la cancha, sin atarse a ningún jugador — todo con suavizado Ramer-Douglas-Peucker + Catmull-Rom + Bézier para las zonas y deshacer con historial separado por jugador, ver sección 5.13. La misma auditoría propuso además resiliencia offline (acordado: solo lectura cacheada, prioridad baja, todavía no implementada) y confirmación de asistencia por WhatsApp/SMS (descartada por costo/complejidad frente al flujo actual).

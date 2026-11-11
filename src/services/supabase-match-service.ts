@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase/client";
+import type { GoalDraft } from "@/utils/match-result-draft";
 import {
   AttendanceStatus,
   EventParticipant,
@@ -276,6 +277,39 @@ export async function fetchMatchEvents(matchId: string): Promise<MatchEvent[]> {
     .order("created_at", { ascending: true });
   if (error) throw new Error(error.message);
   return (data as MatchEventRow[]).map(rowToMatchEvent);
+}
+
+export async function saveFlexibleMatchResult(
+  matchId: string,
+  goals: GoalDraft[],
+  expectedEvents: MatchEvent[],
+  expectedResultUpdatedAt: string | null,
+  notes: string
+): Promise<MatchResult> {
+  const { data, error } = await supabase.rpc("save_flexible_match_result", {
+    p_match_id: matchId,
+    p_goals: goals.map((goal) => ({
+      id: goal.id,
+      side: goal.side,
+      playerId: goal.side === "own" ? goal.player?.playerId ?? null : null,
+    })),
+    p_expected_goals: expectedEvents.filter((event) => event.type === "goal").map((event) => ({
+      id: event.id,
+      side: event.side,
+      minute: event.minute ?? null,
+      player: event.player ?? null,
+      note: event.note ?? null,
+    })),
+    p_expected_result_updated_at: expectedResultUpdatedAt,
+    p_notes: notes,
+  });
+  if (error) {
+    if (error.code === "PGRST202") {
+      throw new Error("La edición de resultados todavía no está habilitada. Falta aplicar la migración 0014 en Supabase.");
+    }
+    throw new Error(error.message);
+  }
+  return rowToMatchResult(data[0] as MatchResultRow);
 }
 
 export async function fetchTeamMatchEvents(teamId: string): Promise<MatchEvent[]> {

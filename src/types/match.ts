@@ -73,7 +73,7 @@ export type MatchEventType =
 export interface EventParticipant {
   /** Solo si side === "own": referencia a la plantilla propia. */
   playerId?: string;
-  /** Dorsal. Obligatorio si side === "rival" (es lo único seguro que se ve). */
+  /** Dorsal. La carga En vivo lo exige para el rival; en Resultado es opcional. */
   number?: number;
   /** Nombre. Para "own" se resuelve casi siempre vía playerId; para
    * "rival" es opcional — a veces solo se tiene el número. */
