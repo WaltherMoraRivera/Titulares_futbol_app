@@ -49,7 +49,7 @@ Interfaz: formulario recibe eventos, resultado, notas, plantilla, partido y call
 - [x] Ejecutar build, tipos y lint completo: sin errores nuevos; permanecen 10 errores y una advertencia previos.
 - [x] Actualizar `DOCUMENTACION.md`, diseno y este registro con evidencia real.
 - [x] Solicitar una revision independiente del cambio completo, resolver sus tres hallazgos P2 y comprobarlos.
-- [ ] Commit en espanol ASCII, push a `dev` y verificar Preview Ready con Vercel. Entregar SQL y pedir validacion del Preview; no tocar main.
+- [x] Commit `4006f1c`, push a `dev` y Preview Ready verificados. SQL entregado al usuario. El 20-11-2026 se probo la RPC con datos reales y el usuario autorizo publicar en main.
 
 ## Registro de ejecucion
 
@@ -60,5 +60,5 @@ Interfaz: formulario recibe eventos, resultado, notas, plantilla, partido y call
 - Verificacion SQL: dependencia PGlite instalada solo en una carpeta temporal, fuera del proyecto. No se agregaron dependencias a package.json.
 - Entorno: Turbopack dev fallo al lanzar el proceso CSS; QA local usa `next dev --webpack` sin cambiar configuracion. `npm run build` con Turbopack paso.
 - Revision independiente: tres hallazgos P2, resueltos en una pasada. Prueba de goleador eliminado observada fallar y pasar; prueba UI de minutos observada fallar antes de mostrar minuto/nota; SQL de concurrencia comprueba recuperacion con snapshot fresco y mensaje de recarga. Sin cambios en reclamo de perfiles, sincronizacion preexistente del flujo DT ni bloqueo global documentado.
-- No hay hallazgos menores diferidos de la revision. Realtime real y RPC contra Supabase quedan pendientes de migracion manual y validacion del usuario.
+- No hay hallazgos menores diferidos de la revision. RPC contra Supabase real validada el 20-11-2026 con el cambio autorizado DECOM FC–INVER EVEREST de 2-0 a 3-6; persistencia verificada al recargar produccion. Realtime entre dispositivos no se volvio a probar.
 - Verificacion final: seis pruebas puras y ocho SQL pasan; QA con la compilacion de produccion (`next start`, service workers bloqueados, Supabase simulado) pasa en ambos tamanos, incluido 0-0 y recuperacion de conflicto tras recargar. Capturas revisadas en `.next/qa/`. Tipos/build pasan y lint sigue en los 11 problemas previos. El seguimiento del push/Preview y el SQL entregado al usuario se registran en el chat.
